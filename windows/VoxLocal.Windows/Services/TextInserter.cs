@@ -66,7 +66,8 @@ public sealed class TextInserter
                 return InsertionOutcome.ClipboardOnly;
             }
 
-            var sent = IsSublimeTextWindow(targetWindow)
+            var useUnicodeTyping = UsesUnicodeTyping(targetWindow);
+            var sent = useUnicodeTyping
                 ? TypeUnicodeText(text)
                 : PostCtrlV();
             if (!sent)
@@ -81,7 +82,7 @@ public sealed class TextInserter
             // editor actually changed its text. This gives users a reliable
             // Ctrl+V fallback without losing their dictation.
             AppLog.Shared.Info($"Paste sent to {DescribeWindow(targetWindow)} using " +
-                               (IsSublimeTextWindow(targetWindow) ? "Unicode typing" : "Ctrl+V") +
+                               (useUnicodeTyping ? "Unicode typing" : "Ctrl+V") +
                                "; text will be kept in clipboard for 5 seconds");
             _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
             return InsertionOutcome.Pasted;
@@ -170,13 +171,16 @@ public sealed class TextInserter
         catch { }
     }
 
-    private static bool IsSublimeTextWindow(nint window)
+    private static bool UsesUnicodeTyping(nint window) =>
+        IsProcess(window, "sublime_text") || IsProcess(window, "Termius");
+
+    private static bool IsProcess(nint window, string processName)
     {
         try
         {
             _ = GetWindowThreadProcessId(window, out var processId);
             return Process.GetProcessById((int)processId).ProcessName.Equals(
-                "sublime_text", StringComparison.OrdinalIgnoreCase);
+                processName, StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }
     }
