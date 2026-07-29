@@ -5,6 +5,8 @@ audio is recorded locally, sent to the bundled `whisper-cli.exe`, and the
 temporary WAV is removed after transcription. Optional Refinement talks only
 to a loopback Ollama endpoint.
 
+For future maintainers and debugging, see [WINDOWS_HANDOFF.md](WINDOWS_HANDOFF.md).
+
 ## Build and run
 
 Run these commands in PowerShell from the repository root:
