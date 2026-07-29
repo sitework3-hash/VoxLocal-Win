@@ -16,6 +16,7 @@ public enum InsertionOutcome
 
 public sealed class TextInserter
 {
+    private static readonly TimeSpan ClipboardRestoreDelay = TimeSpan.FromSeconds(5);
     private readonly Dispatcher _dispatcher;
 
     public TextInserter(Dispatcher dispatcher) => _dispatcher = dispatcher;
@@ -46,7 +47,9 @@ public sealed class TextInserter
                 return InsertionOutcome.ClipboardOnly;
             }
 
+            var snapshot = SnapshotClipboard();
             Clipboard.SetText(text);
+            var clipboardSequence = GetClipboardSequenceNumber();
 
             if (GetForegroundWindow() != targetWindow)
             {
@@ -59,6 +62,7 @@ public sealed class TextInserter
             if (GetForegroundWindow() != targetWindow)
             {
                 AppLog.Shared.Info($"Paste skipped: {DescribeWindow(targetWindow)} did not become foreground");
+                _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
                 return InsertionOutcome.ClipboardOnly;
             }
 
@@ -66,7 +70,10 @@ public sealed class TextInserter
                 ? TypeUnicodeText(text)
                 : PostCtrlV();
             if (!sent)
+            {
+                _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
                 return InsertionOutcome.ClipboardOnly;
+            }
 
             await Task.Delay(450, CancellationToken.None);
             // Keep the recognized phrase in the clipboard. SendInput reports
@@ -75,9 +82,33 @@ public sealed class TextInserter
             // Ctrl+V fallback without losing their dictation.
             AppLog.Shared.Info($"Paste sent to {DescribeWindow(targetWindow)} using " +
                                (IsSublimeTextWindow(targetWindow) ? "Unicode typing" : "Ctrl+V") +
-                               "; text kept in clipboard");
+                               "; text will be kept in clipboard for 5 seconds");
+            _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
             return InsertionOutcome.Pasted;
         }).Task.Unwrap();
+    }
+
+    private async Task RestoreClipboardAfterDelayAsync(ClipboardSnapshot snapshot, uint clipboardSequence)
+    {
+        await Task.Delay(ClipboardRestoreDelay);
+        await _dispatcher.InvokeAsync(() =>
+        {
+            // Do not overwrite anything copied by the user after dictation.
+            if (GetClipboardSequenceNumber() != clipboardSequence)
+            {
+                AppLog.Shared.Info("Clipboard changed by user; previous clipboard was not restored");
+                return;
+            }
+
+            if (!snapshot.Captured)
+            {
+                AppLog.Shared.Info("Previous clipboard could not be read; restoration skipped");
+                return;
+            }
+
+            RestoreClipboard(snapshot.Data);
+            AppLog.Shared.Info("Previous clipboard restored after 5 seconds");
+        });
     }
 
     private static bool IsFocusedPasswordField()
@@ -92,6 +123,51 @@ public sealed class TextInserter
         {
             return false;
         }
+    }
+
+    private static ClipboardSnapshot SnapshotClipboard()
+    {
+        var snapshot = new Dictionary<string, object>();
+        try
+        {
+            var data = Clipboard.GetDataObject();
+            if (data is not null)
+            {
+                foreach (var format in data.GetFormats(false))
+                {
+                    try
+                    {
+                        var value = data.GetData(format, false);
+                        if (value is not null)
+                            snapshot[format] = value;
+                    }
+                    catch { }
+                }
+            }
+            return new ClipboardSnapshot(snapshot, true);
+        }
+        catch
+        {
+            return new ClipboardSnapshot(snapshot, false);
+        }
+    }
+
+    private static void RestoreClipboard(Dictionary<string, object> snapshot)
+    {
+        try
+        {
+            if (snapshot.Count == 0)
+            {
+                Clipboard.Clear();
+                return;
+            }
+
+            var data = new DataObject();
+            foreach (var (format, value) in snapshot)
+                data.SetData(format, value);
+            Clipboard.SetDataObject(data, true);
+        }
+        catch { }
     }
 
     private static bool IsSublimeTextWindow(nint window)
@@ -166,6 +242,8 @@ public sealed class TextInserter
         }
     };
 
+    private sealed record ClipboardSnapshot(Dictionary<string, object> Data, bool Captured);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct Input
     {
@@ -194,6 +272,9 @@ public sealed class TextInserter
 
     [DllImport("user32.dll")]
     private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

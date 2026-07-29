@@ -153,7 +153,7 @@ public sealed class DictationController : IDisposable
                 text, _targetWindow, _settings.Current.InsertionMode, cancellationToken);
             var message = outcome switch
             {
-                InsertionOutcome.Pasted => "Текст отправлен — также в буфере",
+                InsertionOutcome.Pasted => "Текст отправлен — буфер вернётся через 5 с",
                 InsertionOutcome.SecureField => "Поле защищено — текст скопирован",
                 _ => "Текст скопирован — вставьте Ctrl+V"
             };
