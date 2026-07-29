@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
@@ -15,6 +16,8 @@ public enum InsertionOutcome
 
 public sealed class TextInserter
 {
+    private const uint WmPaste = 0x0302;
+    private const uint SmtoAbortIfHung = 0x0002;
     private readonly Dispatcher _dispatcher;
 
     public TextInserter(Dispatcher dispatcher) => _dispatcher = dispatcher;
@@ -45,7 +48,6 @@ public sealed class TextInserter
                 return InsertionOutcome.ClipboardOnly;
             }
 
-            var snapshot = SnapshotClipboard();
             Clipboard.SetText(text);
 
             if (GetForegroundWindow() != targetWindow)
@@ -55,11 +57,17 @@ public sealed class TextInserter
                 await Task.Delay(120, cancellationToken);
             }
 
-            if (!PostCtrlV())
+            var pastedByWindowMessage = IsSublimeTextWindow(targetWindow) && PostWindowPaste(targetWindow);
+            if (!pastedByWindowMessage && !PostCtrlV())
                 return InsertionOutcome.ClipboardOnly;
 
             await Task.Delay(450, CancellationToken.None);
-            RestoreClipboard(snapshot);
+            // Keep the recognized phrase in the clipboard. SendInput reports
+            // whether Windows accepted the keystrokes, not whether a custom
+            // editor actually changed its text. This gives users a reliable
+            // Ctrl+V fallback without losing their dictation.
+            AppLog.Shared.Info($"Paste sent to {DescribeWindow(targetWindow)} using " +
+                               (pastedByWindowMessage ? "WM_PASTE" : "Ctrl+V") + "; text kept in clipboard");
             return InsertionOutcome.Pasted;
         }).Task.Unwrap();
     }
@@ -78,41 +86,35 @@ public sealed class TextInserter
         }
     }
 
-    private static Dictionary<string, object> SnapshotClipboard()
+    private static bool IsSublimeTextWindow(nint window)
     {
-        var snapshot = new Dictionary<string, object>();
         try
         {
-            var data = Clipboard.GetDataObject();
-            if (data is null)
-                return snapshot;
-            foreach (var format in data.GetFormats(false))
-            {
-                try
-                {
-                    var value = data.GetData(format, false);
-                    if (value is not null)
-                        snapshot[format] = value;
-                }
-                catch { }
-            }
+            _ = GetWindowThreadProcessId(window, out var processId);
+            return Process.GetProcessById((int)processId).ProcessName.Equals(
+                "sublime_text", StringComparison.OrdinalIgnoreCase);
         }
-        catch { }
-        return snapshot;
+        catch { return false; }
     }
 
-    private static void RestoreClipboard(Dictionary<string, object> snapshot)
+    private static bool PostWindowPaste(nint targetWindow)
     {
-        if (snapshot.Count == 0)
-            return;
+        var threadId = GetWindowThreadProcessId(targetWindow, out _);
+        var guiInfo = new GuiThreadInfo { Size = (uint)Marshal.SizeOf<GuiThreadInfo>() };
+        var target = GetGuiThreadInfo(threadId, ref guiInfo) && guiInfo.Focus != 0
+            ? guiInfo.Focus
+            : targetWindow;
+        return SendMessageTimeout(target, WmPaste, 0, 0, SmtoAbortIfHung, 1200, out _) != 0;
+    }
+
+    private static string DescribeWindow(nint window)
+    {
         try
         {
-            var data = new DataObject();
-            foreach (var (format, value) in snapshot)
-                data.SetData(format, value);
-            Clipboard.SetDataObject(data, true);
+            _ = GetWindowThreadProcessId(window, out var processId);
+            return Process.GetProcessById((int)processId).ProcessName;
         }
-        catch { }
+        catch { return "unknown window"; }
     }
 
     private static bool PostCtrlV()
@@ -177,6 +179,46 @@ public sealed class TextInserter
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(nint window, int command);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGuiThreadInfo(uint threadId, ref GuiThreadInfo guiInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SendMessageTimeout(
+        nint window,
+        uint message,
+        nuint wParam,
+        nint lParam,
+        uint flags,
+        uint timeout,
+        out nint result);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint count, Input[] inputs, int size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public uint Size;
+        public uint Flags;
+        public nint Active;
+        public nint Focus;
+        public nint Capture;
+        public nint MenuOwner;
+        public nint MoveSize;
+        public nint Caret;
+        public Rect CaretRect;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 }
