@@ -1,5 +1,7 @@
 # VoxLocal
 
+> Windows MVP instructions: [README_WINDOWS.md](README_WINDOWS.md)
+
 **Privacy-first, fully local voice dictation for macOS.** Press a global shortcut, speak, release — the recognized text is inserted into whatever app you were using. Speech never leaves your Mac.
 
 Русская версия: [README_RU.md](README_RU.md)

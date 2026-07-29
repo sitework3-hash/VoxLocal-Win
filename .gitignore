@@ -5,6 +5,10 @@ dist/
 # Third-party sources and tools fetched by scripts/bootstrap.sh
 vendor/
 
+# .NET build products
+**/bin/
+**/obj/
+
 # Xcode / SwiftPM local state
 .swiftpm/
 *.xcodeproj
