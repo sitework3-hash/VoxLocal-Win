@@ -7,6 +7,7 @@ public sealed class DictationController : IDisposable
 {
     private readonly DictationStateMachine _machine = new();
     private readonly SettingsStore _settings;
+    private readonly TranscriptionHistoryStore _history;
     private readonly AudioRecorder _recorder;
     private readonly ModelManager _models;
     private readonly WhisperTranscriber _transcriber;
@@ -24,6 +25,7 @@ public sealed class DictationController : IDisposable
 
     public DictationController(
         SettingsStore settings,
+        TranscriptionHistoryStore history,
         AudioRecorder recorder,
         ModelManager models,
         WhisperTranscriber transcriber,
@@ -33,6 +35,7 @@ public sealed class DictationController : IDisposable
         GlobalHotkeyService hotkeys)
     {
         _settings = settings;
+        _history = history;
         _recorder = recorder;
         _models = models;
         _transcriber = transcriber;
@@ -147,6 +150,8 @@ public sealed class DictationController : IDisposable
                     AppLog.Shared.Info($"Refinement skipped: {error.Message}");
                 }
             }
+
+            _history.Add(text);
 
             Transition(DictationState.Inserting, "Вставляю…");
             var outcome = await _inserter.InsertAsync(

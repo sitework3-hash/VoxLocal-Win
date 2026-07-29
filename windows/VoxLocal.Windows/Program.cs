@@ -34,6 +34,7 @@ public static class Program
         };
 
         var settings = new SettingsStore();
+        var history = new TranscriptionHistoryStore();
         var models = new ModelManager();
         using var hotkeys = new GlobalHotkeyService(application.Dispatcher, settings);
         using var recorder = new AudioRecorder();
@@ -42,9 +43,9 @@ public static class Program
         var refiner = new OllamaRefiner();
         var inserter = new TextInserter(application.Dispatcher);
         using var dictation = new DictationController(
-            settings, recorder, models, transcriber, sherpa, refiner, inserter, hotkeys);
+            settings, history, recorder, models, transcriber, sherpa, refiner, inserter, hotkeys);
         var overlay = new OverlayWindow();
-        using var tray = new TrayController(dictation, settings, models, application.Dispatcher);
+        using var tray = new TrayController(dictation, settings, history, models, application.Dispatcher);
 
         // NAudio delivers level samples from its capture thread. Every visual
         // update must cross back to the WPF dispatcher before touching a Window.

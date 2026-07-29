@@ -10,6 +10,7 @@ public static class AppPaths
         ModelsDirectory, "sherpa-onnx-streaming-t-one-russian-2025-09-08");
     public static string LogsDirectory { get; } = Path.Combine(DataDirectory, "logs");
     public static string SettingsFile { get; } = Path.Combine(DataDirectory, "settings.json");
+    public static string HistoryFile { get; } = Path.Combine(DataDirectory, "history.json");
 
     public static void EnsureDirectories()
     {

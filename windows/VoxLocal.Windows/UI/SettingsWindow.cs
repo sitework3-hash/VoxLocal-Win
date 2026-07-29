@@ -18,6 +18,7 @@ public sealed class SettingsWindow : Window
     private static readonly Brush BorderColor = new SolidColorBrush(Color.FromRgb(220, 226, 236));
     private static readonly Brush AccentColor = new SolidColorBrush(Color.FromRgb(31, 104, 217));
     private readonly SettingsStore _store;
+    private readonly TranscriptionHistoryStore _history;
     private readonly ModelManager _models;
     private readonly ComboBox _model;
     private readonly ComboBox _language;
@@ -30,9 +31,10 @@ public sealed class SettingsWindow : Window
     private readonly ProgressBar _downloadProgress;
     private readonly TextBlock _modelStatus;
 
-    public SettingsWindow(SettingsStore store, ModelManager models)
+    public SettingsWindow(SettingsStore store, TranscriptionHistoryStore history, ModelManager models)
     {
         _store = store;
+        _history = history;
         _models = models;
         Title = "VoxLocal — настройки";
         Width = 560;
@@ -84,8 +86,16 @@ public sealed class SettingsWindow : Window
         };
         var content = new StackPanel { Margin = new Thickness(26, 18, 26, 18) };
         scroll.Content = content;
-        Grid.SetRow(scroll, 1);
-        root.Children.Add(scroll);
+        var tabs = new TabControl
+        {
+            Margin = new Thickness(18, 14, 18, 0),
+            Background = AppBackground,
+            BorderThickness = new Thickness(0)
+        };
+        tabs.Items.Add(new TabItem { Header = "Основное", Content = scroll });
+        tabs.Items.Add(new TabItem { Header = "История", Content = BuildHistoryTab() });
+        Grid.SetRow(tabs, 1);
+        root.Children.Add(tabs);
 
         var hotkey = AddSection(content, "Горячая клавиша");
         _exactAltSpace = AddCheck(
@@ -217,6 +227,90 @@ public sealed class SettingsWindow : Window
         _store.Current.OllamaModel = _ollamaModel.Text.Trim();
         _store.Save();
         Close();
+    }
+
+    private UIElement BuildHistoryTab()
+    {
+        var scroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        var content = new StackPanel { Margin = new Thickness(8, 18, 8, 18) };
+        var entries = _history.GetLatest();
+        if (entries.Count == 0)
+        {
+            content.Children.Add(new Border
+            {
+                Background = PanelBackground,
+                BorderBrush = BorderColor,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(22),
+                Child = new TextBlock
+                {
+                    Text = "Здесь появятся последние 5 распознанных фраз.",
+                    TextAlignment = TextAlignment.Center,
+                    Foreground = new SolidColorBrush(Color.FromRgb(91, 103, 121)),
+                    TextWrapping = TextWrapping.Wrap
+                }
+            });
+        }
+        else
+        {
+            foreach (var entry in entries)
+                content.Children.Add(CreateHistoryEntry(entry));
+        }
+        scroll.Content = content;
+        return scroll;
+    }
+
+    private static Border CreateHistoryEntry(TranscriptionHistoryEntry entry)
+    {
+        var card = new Border
+        {
+            Background = PanelBackground,
+            BorderBrush = BorderColor,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(15, 12, 15, 12),
+            Margin = new Thickness(0, 0, 0, 10)
+        };
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var top = new DockPanel { LastChildFill = false };
+        var copy = CreateButton("Копировать");
+        copy.Margin = new Thickness(8, 0, 0, 0);
+        copy.Click += (_, _) =>
+        {
+            Clipboard.SetText(entry.Text);
+            copy.Content = "Скопировано";
+        };
+        DockPanel.SetDock(copy, Dock.Right);
+        top.Children.Add(copy);
+        top.Children.Add(new TextBlock
+        {
+            Text = entry.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy  HH:mm"),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(91, 103, 121)),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(top);
+
+        var text = new TextBlock
+        {
+            Text = entry.Text,
+            FontSize = 14,
+            Foreground = new SolidColorBrush(Color.FromRgb(38, 49, 68)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0)
+        };
+        Grid.SetRow(text, 1);
+        content.Children.Add(text);
+        card.Child = content;
+        return card;
     }
 
     private static StackPanel AddSection(Panel parent, string title)

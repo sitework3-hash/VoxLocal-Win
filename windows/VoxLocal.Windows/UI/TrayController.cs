@@ -13,6 +13,7 @@ public sealed class TrayController : IDisposable
     private readonly NotifyIcon _icon;
     private readonly DictationController _dictation;
     private readonly SettingsStore _settings;
+    private readonly TranscriptionHistoryStore _history;
     private readonly ModelManager _models;
     private readonly Dispatcher _dispatcher;
     private readonly Action<DictationState, string> _stateHandler;
@@ -21,11 +22,13 @@ public sealed class TrayController : IDisposable
     public TrayController(
         DictationController dictation,
         SettingsStore settings,
+        TranscriptionHistoryStore history,
         ModelManager models,
         Dispatcher dispatcher)
     {
         _dictation = dictation;
         _settings = settings;
+        _history = history;
         _models = models;
         _dispatcher = dispatcher;
         _icon = new NotifyIcon
@@ -94,7 +97,7 @@ public sealed class TrayController : IDisposable
             _settingsWindow.Activate();
             return;
         }
-        _settingsWindow = new SettingsWindow(_settings, _models);
+        _settingsWindow = new SettingsWindow(_settings, _history, _models);
         _settingsWindow.Show();
         _settingsWindow.Activate();
     }

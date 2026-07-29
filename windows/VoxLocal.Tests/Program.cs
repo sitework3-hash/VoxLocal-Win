@@ -17,6 +17,7 @@ public static class Program
         Run("artifact removal", TestArtifactRemoval);
         Run("refinement safeguard", TestRefinementSafeguard);
         Run("model catalog", TestModelCatalog);
+        Run("transcription history", TestTranscriptionHistory);
         Run("Ollama loopback protection", TestLoopbackProtection);
         Console.WriteLine($"[voxlocal-tests] passed {_passed} tests");
         return 0;
@@ -101,6 +102,32 @@ public static class Program
         var baseModel = WhisperModelCatalog.Get("base");
         Equal("ggml-base.bin", baseModel.FileName);
         Equal(148, baseModel.ApproxMb);
+    }
+
+    private static void TestTranscriptionHistory()
+    {
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VoxLocal.Tests", Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "history.json");
+            var history = new TranscriptionHistoryStore(path);
+            for (var index = 1; index <= 6; index++)
+                history.Add($"phrase {index}");
+
+            var entries = history.GetLatest();
+            Equal(5, entries.Count);
+            Equal("phrase 6", entries[0].Text);
+            Equal("phrase 2", entries[^1].Text);
+
+            var reloaded = new TranscriptionHistoryStore(path).GetLatest();
+            Equal(5, reloaded.Count);
+            Equal("phrase 6", reloaded[0].Text);
+        }
+        finally
+        {
+            System.IO.Directory.Delete(directory, true);
+        }
     }
 
     private static void TestLoopbackProtection()
