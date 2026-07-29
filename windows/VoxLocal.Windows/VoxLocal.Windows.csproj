@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>VoxLocal</AssemblyName>
     <RootNamespace>VoxLocal.Win</RootNamespace>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets\VoxLocal.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
