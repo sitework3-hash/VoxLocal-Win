@@ -16,8 +16,6 @@ public enum InsertionOutcome
 
 public sealed class TextInserter
 {
-    private const uint WmPaste = 0x0302;
-    private const uint SmtoAbortIfHung = 0x0002;
     private readonly Dispatcher _dispatcher;
 
     public TextInserter(Dispatcher dispatcher) => _dispatcher = dispatcher;
@@ -52,13 +50,22 @@ public sealed class TextInserter
 
             if (GetForegroundWindow() != targetWindow)
             {
-                ShowWindow(targetWindow, 5);
+                ShowWindow(targetWindow, 9);
+                BringWindowToTop(targetWindow);
                 SetForegroundWindow(targetWindow);
-                await Task.Delay(120, cancellationToken);
+                await Task.Delay(180, cancellationToken);
             }
 
-            var pastedByWindowMessage = IsSublimeTextWindow(targetWindow) && PostWindowPaste(targetWindow);
-            if (!pastedByWindowMessage && !PostCtrlV())
+            if (GetForegroundWindow() != targetWindow)
+            {
+                AppLog.Shared.Info($"Paste skipped: {DescribeWindow(targetWindow)} did not become foreground");
+                return InsertionOutcome.ClipboardOnly;
+            }
+
+            var sent = IsSublimeTextWindow(targetWindow)
+                ? TypeUnicodeText(text)
+                : PostCtrlV();
+            if (!sent)
                 return InsertionOutcome.ClipboardOnly;
 
             await Task.Delay(450, CancellationToken.None);
@@ -67,7 +74,8 @@ public sealed class TextInserter
             // editor actually changed its text. This gives users a reliable
             // Ctrl+V fallback without losing their dictation.
             AppLog.Shared.Info($"Paste sent to {DescribeWindow(targetWindow)} using " +
-                               (pastedByWindowMessage ? "WM_PASTE" : "Ctrl+V") + "; text kept in clipboard");
+                               (IsSublimeTextWindow(targetWindow) ? "Unicode typing" : "Ctrl+V") +
+                               "; text kept in clipboard");
             return InsertionOutcome.Pasted;
         }).Task.Unwrap();
     }
@@ -97,16 +105,6 @@ public sealed class TextInserter
         catch { return false; }
     }
 
-    private static bool PostWindowPaste(nint targetWindow)
-    {
-        var threadId = GetWindowThreadProcessId(targetWindow, out _);
-        var guiInfo = new GuiThreadInfo { Size = (uint)Marshal.SizeOf<GuiThreadInfo>() };
-        var target = GetGuiThreadInfo(threadId, ref guiInfo) && guiInfo.Focus != 0
-            ? guiInfo.Focus
-            : targetWindow;
-        return SendMessageTimeout(target, WmPaste, 0, 0, SmtoAbortIfHung, 1200, out _) != 0;
-    }
-
     private static string DescribeWindow(nint window)
     {
         try
@@ -129,6 +127,19 @@ public sealed class TextInserter
         return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>()) == inputs.Length;
     }
 
+    private static bool TypeUnicodeText(string text)
+    {
+        var inputs = new List<Input>(text.Length * 2);
+        foreach (var character in text)
+        {
+            inputs.Add(UnicodeInput(character, false));
+            inputs.Add(UnicodeInput(character, true));
+        }
+
+        return inputs.Count > 0 &&
+               SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<Input>()) == inputs.Count;
+    }
+
     private static Input KeyboardInput(ushort key, bool keyUp) => new()
     {
         Type = 1,
@@ -138,6 +149,19 @@ public sealed class TextInserter
             {
                 VirtualKey = key,
                 Flags = keyUp ? 0x0002u : 0
+            }
+        }
+    };
+
+    private static Input UnicodeInput(char character, bool keyUp) => new()
+    {
+        Type = 1,
+        Union = new InputUnion
+        {
+            Keyboard = new KeyboardInputData
+            {
+                ScanCode = character,
+                Flags = 0x0004u | (keyUp ? 0x0002u : 0)
             }
         }
     };
@@ -180,45 +204,13 @@ public sealed class TextInserter
     private static extern bool ShowWindow(nint window, int command);
 
     [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
-
-    [DllImport("user32.dll", EntryPoint = "GetGUIThreadInfo")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetGuiThreadInfo(uint threadId, ref GuiThreadInfo guiInfo);
+    private static extern bool BringWindowToTop(nint window);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern nint SendMessageTimeout(
-        nint window,
-        uint message,
-        nuint wParam,
-        nint lParam,
-        uint flags,
-        uint timeout,
-        out nint result);
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint count, Input[] inputs, int size);
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct GuiThreadInfo
-    {
-        public uint Size;
-        public uint Flags;
-        public nint Active;
-        public nint Focus;
-        public nint Capture;
-        public nint MenuOwner;
-        public nint MoveSize;
-        public nint Caret;
-        public Rect CaretRect;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
 }
