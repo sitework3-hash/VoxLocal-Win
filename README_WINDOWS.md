@@ -1,9 +1,10 @@
 # VoxLocal for Windows (MVP)
 
 Windows implementation of VoxLocal keeps all speech recognition on the device:
-audio is recorded locally, sent to the bundled `whisper-cli.exe`, and the
-temporary WAV is removed after transcription. Optional Refinement talks only
-to a loopback Ollama endpoint.
+audio is recorded and recognized locally, and the temporary WAV is removed
+after transcription. Optional text refinement can use Polza.ai through its
+OpenAI-compatible API; only the recognized text is sent when the user explicitly
+enables this feature.
 
 For future maintainers and debugging, see [WINDOWS_HANDOFF.md](WINDOWS_HANDOFF.md).
 
@@ -65,13 +66,16 @@ Whisper audio context. This substantially lowers CPU latency for short
 dictation without changing the selected model. Longer recordings use the full
 context so their ending is preserved.
 
-## Optional Ollama refinement
+## Optional Polza.ai refinement
 
-VoxLocal never installs Ollama. If it is already installed, run:
+Cloud refinement is disabled by default. To enable it, open Settings, select
+`OpenAiCompatible`, keep the Polza.ai Base URL
+`https://polza.ai/api/v1`, choose Gemini Flash or DeepSeek Chat, and enter your
+own Polza.ai API key. Use **Проверить подключение** before saving.
 
-```powershell
-ollama pull qwen2.5:3b
-```
-
-Then enable Refinement in VoxLocal Settings and enter `qwen2.5:3b`. The app
-rejects non-local Ollama endpoints.
+The key is encrypted with Windows DPAPI and is never written to normal logs.
+It can be removed explicitly from Settings. The model field and Base URL remain
+editable so another OpenAI-compatible provider can be selected later. On any
+network, timeout, authentication, balance, model, server, or response-format
+error, VoxLocal inserts the original transcript instead. The default cloud
+timeout is 8 seconds.

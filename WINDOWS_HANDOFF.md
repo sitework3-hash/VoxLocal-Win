@@ -64,7 +64,7 @@ or `dist`.
 | Persistent history | `Core/TranscriptionHistoryStore.cs` | Keeps exactly five newest successful transcripts in `history.json`. |
 | Settings UI | `UI/SettingsWindow.cs` | Tabs: `Основное` and `История`. |
 | Tray/overlay | `UI/TrayController.cs`, `UI/OverlayWindow.cs` | Tray menu, settings entry point and recording status. |
-| Tests | `windows/VoxLocal.Tests/Program.cs` | Console test suite, currently 10 checks. |
+| Tests | `windows/VoxLocal.Tests/Program.cs` | Console test suite, currently 19 checks. |
 
 ## Expected user behaviour
 
@@ -103,15 +103,22 @@ Useful messages include the captured target process and whether the operation
 used `Ctrl+V` or `Unicode typing`. The log deliberately does not write the
 recognized text.
 
+## Cloud refinement status
+
+- The current default provider is **Polza.ai**, using the OpenAI-compatible base URL `https://polza.ai/api/v1`.
+- Built-in editable profiles are `google/gemini-2.5-flash` and `deepseek/deepseek-chat`; custom model IDs and Base URLs remain supported for a later provider change.
+- The API key is entered only in Settings, encrypted with Windows DPAPI, never logged, and can be explicitly removed from Settings.
+- The **Проверить подключение** button sends an isolated short request and never inserts its response into another application.
+- Cloud refinement remains disabled by default. Timeout or provider errors fall back to the original transcript; the default timeout is 8 seconds.
+- A live Polza.ai request has not yet been run because it requires the user's private key. This is the next manual verification step.
+
 ## Permissions and optional features
 
 - Enable microphone access for desktop apps in Windows Settings → Privacy &
   security → Microphone.
 - Windows has no macOS Accessibility permission. The microphone permission is
   the only required privacy permission for VoxLocal.
-- Ollama is optional and must never be installed automatically. If already
-  installed, the user can run `ollama pull qwen2.5:3b` and enable Refinement
-  with a local loopback endpoint only.
+- Ollama support remains in the legacy code path but is not the current project direction and must never be installed automatically. Polza.ai/OpenAI-compatible refinement is the default provider.
 
 ## Change and release checklist
 
