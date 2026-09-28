@@ -66,6 +66,13 @@ public sealed class TextInserter
                 return InsertionOutcome.ClipboardOnly;
             }
 
+            if (!IsWindowValid(targetWindow))
+            {
+                AppLog.Shared.Info("Paste skipped: captured target window is no longer valid");
+                Clipboard.SetText(text);
+                return InsertionOutcome.ClipboardOnly;
+            }
+
             var snapshot = SnapshotClipboard();
             Clipboard.SetText(text);
             var clipboardSequence = GetClipboardSequenceNumber();
@@ -81,6 +88,13 @@ public sealed class TextInserter
             if (GetForegroundWindow() != targetWindow)
             {
                 AppLog.Shared.Info($"Paste skipped: {DescribeWindow(targetWindow)} did not become foreground");
+                _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
+                return InsertionOutcome.ClipboardOnly;
+            }
+
+            if (!await WaitForModifierKeysReleasedAsync(cancellationToken))
+            {
+                AppLog.Shared.Info("Paste skipped: keyboard modifiers remained pressed");
                 _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
                 return InsertionOutcome.ClipboardOnly;
             }
@@ -218,6 +232,23 @@ public sealed class TextInserter
 
     private static string DescribeWindow(nint window) => DescribeCapturedWindow(window);
 
+    private static async Task<bool> WaitForModifierKeysReleasedAsync(CancellationToken cancellationToken)
+    {
+        const int attempts = 6;
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsModifierKeyDown(0x10) && !IsModifierKeyDown(0x11) &&
+                !IsModifierKeyDown(0x12) && !IsModifierKeyDown(0x5B) &&
+                !IsModifierKeyDown(0x5C))
+                return true;
+            await Task.Delay(30, cancellationToken);
+        }
+        return false;
+    }
+
+    private static bool IsModifierKeyDown(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
+
     private static bool PostCtrlV()
     {
         var inputs = new[]
@@ -314,6 +345,9 @@ public sealed class TextInserter
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool BringWindowToTop(nint window);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int key);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
