@@ -88,17 +88,40 @@ public enum RefinementProvider
     OpenAiCompatible
 }
 
+public enum OpenAiModelProfile
+{
+    GeminiFlash,
+    DeepSeekFlash,
+    Custom
+}
+
 public static class OpenAiCompatibleModelCatalog
 {
+    public static IReadOnlyDictionary<OpenAiModelProfile, string> Profiles { get; } =
+        new Dictionary<OpenAiModelProfile, string>
+        {
+            [OpenAiModelProfile.GeminiFlash] = "google/gemini-2.5-flash",
+            [OpenAiModelProfile.DeepSeekFlash] = "deepseek/deepseek-chat"
+        };
+
     public static IReadOnlyList<string> Models { get; } =
     [
-        "claude-fable-5", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5",
-        "claude-sonnet-4-6", "claude-sonnet-5", "composer-2.5-fast", "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4.1-flash",
-        "gemini-3.1-pro", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "glm-5-turbo", "glm-5.2", "glm-5.3", "glm-5.3-flash",
-        "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol",
-        "grok-4.5", "grok-4.6", "grok-4.7", "hy4-preview", "kimi-k2.7-code", "kimi-k3", "mimo-v2.5", "mimo-v2.5-pro",
-        "minimax-m3", "muse-spark-1.3", "qwen3.8-flash", "qwen3.8-max"
+        "google/gemini-2.5-flash",
+        "deepseek/deepseek-chat",
+        "openai/gpt-4o",
+        "anthropic/claude-sonnet-4-6",
+        "perplexity/sonar"
     ];
+
+    public static OpenAiModelProfile ResolveProfile(string model) =>
+        Profiles.FirstOrDefault(pair => pair.Value.Equals(model, StringComparison.OrdinalIgnoreCase)).Key switch
+        {
+            OpenAiModelProfile.GeminiFlash when model.Equals(Profiles[OpenAiModelProfile.GeminiFlash], StringComparison.OrdinalIgnoreCase)
+                => OpenAiModelProfile.GeminiFlash,
+            OpenAiModelProfile.DeepSeekFlash when model.Equals(Profiles[OpenAiModelProfile.DeepSeekFlash], StringComparison.OrdinalIgnoreCase)
+                => OpenAiModelProfile.DeepSeekFlash,
+            _ => OpenAiModelProfile.Custom
+        };
 }
 
 public sealed class AppSettings
@@ -119,12 +142,13 @@ public sealed class AppSettings
     public bool RemoveArtifacts { get; set; } = true;
     public InsertionMode InsertionMode { get; set; } = InsertionMode.Automatic;
     public bool RefinementEnabled { get; set; }
-    public RefinementProvider RefinementProvider { get; set; } = RefinementProvider.Ollama;
+    public RefinementProvider RefinementProvider { get; set; } = RefinementProvider.OpenAiCompatible;
     public RefinementPreset RefinementPreset { get; set; } = RefinementPreset.CleanDictation;
     public string OllamaEndpoint { get; set; } = "http://127.0.0.1:11434";
     public string OllamaModel { get; set; } = "";
-    public string OpenAiBaseUrl { get; set; } = "https://triklz27.ru/v1";
-    public string OpenAiModel { get; set; } = "gemini-3.6-flash";
+    public string OpenAiBaseUrl { get; set; } = "https://polza.ai/api/v1";
+    public string OpenAiModel { get; set; } = "google/gemini-2.5-flash";
+    public OpenAiModelProfile OpenAiModelProfile { get; set; } = OpenAiModelProfile.GeminiFlash;
     public string OpenAiApiKeyProtected { get; set; } = "";
     public double RefinementTimeoutSeconds { get; set; } = 8;
 

@@ -32,6 +32,7 @@ public sealed class SettingsWindow : Window
     private readonly TextBox _ollamaModel;
     private readonly TextBox _cloudBaseUrl;
     private readonly ComboBox _cloudModel;
+    private readonly ComboBox _cloudProfile;
     private readonly System.Windows.Controls.PasswordBox _cloudApiKey;
     private readonly Button _deleteCloudApiKey;
     private readonly TextBlock _cloudApiKeyStatus;
@@ -160,11 +161,20 @@ public sealed class SettingsWindow : Window
         _refinementProvider = AddCombo(output, "Провайдер", Enum.GetValues<RefinementProvider>().Cast<object>());
         _refinementProvider.SelectedItem = store.Current.RefinementProvider;
         _ollamaModel = AddText(output, "Модель Ollama", store.Current.OllamaModel);
-        _cloudBaseUrl = AddText(output, "Cloud Base URL", store.Current.OpenAiBaseUrl);
-        _cloudModel = AddCombo(output, "Cloud model", OpenAiCompatibleModelCatalog.Models.Cast<object>());
+        _cloudBaseUrl = AddText(output, "Polza.ai Base URL", store.Current.OpenAiBaseUrl);
+        _cloudProfile = AddCombo(output, "Профиль модели", OpenAiModelProfileLabels.Cast<object>());
+        _cloudProfile.SelectedIndex = store.Current.OpenAiModelProfile switch
+        {
+            OpenAiModelProfile.GeminiFlash => 0,
+            OpenAiModelProfile.DeepSeekFlash => 1,
+            _ => 2
+        };
+        _cloudProfile.SelectionChanged += (_, _) => ApplyCloudProfile();
+        _cloudModel = AddCombo(output, "Модель Polza.ai", OpenAiCompatibleModelCatalog.Models.Cast<object>());
         _cloudModel.IsEditable = true;
         _cloudModel.SelectedItem = store.Current.OpenAiModel;
-        output.Children.Add(FieldLabel("Cloud API key (не сохраняется в открытом виде)"));
+        ApplyCloudProfile();
+        output.Children.Add(FieldLabel("Polza.ai API key (не сохраняется в открытом виде)"));
         _cloudApiKey = new System.Windows.Controls.PasswordBox
         {
             MinHeight = 32,
@@ -382,6 +392,7 @@ public sealed class SettingsWindow : Window
         _store.Current.OllamaModel = _ollamaModel.Text.Trim();
         _store.Current.OpenAiBaseUrl = _cloudBaseUrl.Text.Trim();
         _store.Current.OpenAiModel = _cloudModel.Text.Trim();
+        _store.Current.OpenAiModelProfile = OpenAiCompatibleModelCatalog.ResolveProfile(_store.Current.OpenAiModel);
         _store.Current.RefinementTimeoutSeconds = timeoutSeconds;
         if (!string.IsNullOrWhiteSpace(_cloudApiKey.Password))
             _store.Current.OpenAiApiKeyProtected = SecretProtector.Protect(_cloudApiKey.Password);
@@ -481,6 +492,24 @@ public sealed class SettingsWindow : Window
         "Деловой стиль — нейтральное оформление",
         "Сохранить формулировки — только пунктуация"
     ];
+
+    private static readonly string[] OpenAiModelProfileLabels =
+    [
+        "Gemini Flash — быстро",
+        "DeepSeek Chat — альтернатива",
+        "Своя модель"
+    ];
+
+    private void ApplyCloudProfile()
+    {
+        if (_cloudProfile.SelectedIndex is 0 or 1)
+        {
+            var profile = _cloudProfile.SelectedIndex == 0
+                ? OpenAiModelProfile.GeminiFlash
+                : OpenAiModelProfile.DeepSeekFlash;
+            _cloudModel.Text = OpenAiCompatibleModelCatalog.Profiles[profile];
+        }
+    }
 
     private static StackPanel AddSection(Panel parent, string title)
     {

@@ -210,13 +210,18 @@ public static class Program
 
     private static void TestCloudModelCatalog()
     {
-        Equal(39, OpenAiCompatibleModelCatalog.Models.Count);
-        True(OpenAiCompatibleModelCatalog.Models.Contains("gemini-3.6-flash"));
-        True(OpenAiCompatibleModelCatalog.Models.Contains("deepseek-v4.1-flash"));
-        True(OpenAiCompatibleModelCatalog.Models.Contains("gpt-6-luna"));
-        Equal("https://triklz27.ru/v1", new AppSettings().OpenAiBaseUrl);
+        Equal(5, OpenAiCompatibleModelCatalog.Models.Count);
+        True(OpenAiCompatibleModelCatalog.Models.Contains("google/gemini-2.5-flash"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("deepseek/deepseek-chat"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("openai/gpt-4o"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("anthropic/claude-sonnet-4-6"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("perplexity/sonar"));
+        Equal("google/gemini-2.5-flash", OpenAiCompatibleModelCatalog.Profiles[OpenAiModelProfile.GeminiFlash]);
+        Equal("deepseek/deepseek-chat", OpenAiCompatibleModelCatalog.Profiles[OpenAiModelProfile.DeepSeekFlash]);
+        Equal("https://polza.ai/api/v1", new AppSettings().OpenAiBaseUrl);
+        Equal("google/gemini-2.5-flash", new AppSettings().OpenAiModel);
         Equal(8d, new AppSettings().RefinementTimeoutSeconds);
-        Equal(RefinementProvider.Ollama, new AppSettings().RefinementProvider);
+        Equal(RefinementProvider.OpenAiCompatible, new AppSettings().RefinementProvider);
     }
 
     private static void TestCloudEndpointNormalization()
@@ -287,7 +292,7 @@ public static class Program
             False(store.Current.UseExactAltSpace);
             False(store.Current.RefinementEnabled);
             Equal("", store.Current.OpenAiApiKeyProtected);
-            Equal("https://triklz27.ru/v1", store.Current.OpenAiBaseUrl);
+            Equal("https://polza.ai/api/v1", store.Current.OpenAiBaseUrl);
             Equal(8d, store.Current.RefinementTimeoutSeconds);
         }
         finally
