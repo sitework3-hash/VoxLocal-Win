@@ -98,9 +98,12 @@ public sealed class TextInserter
             }
 
             var useUnicodeTyping = UsesUnicodeTyping(targetWindow);
+            var useDirectPasteMessage = IsProcess(targetWindow, "notepad");
             var sent = useUnicodeTyping
                 ? TypeUnicodeText(text)
-                : PostCtrlV();
+                : useDirectPasteMessage
+                    ? SendPasteMessage(targetWindow)
+                    : PostCtrlV();
             if (!sent)
             {
                 _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
@@ -113,7 +116,8 @@ public sealed class TextInserter
             // editor actually changed its text. This gives users a reliable
             // Ctrl+V fallback without losing their dictation.
             AppLog.Shared.Info($"Paste sent to {DescribeWindow(targetWindow)} using " +
-                               (useUnicodeTyping ? "Unicode typing" : "Ctrl+V") +
+                               (useUnicodeTyping ? "Unicode typing" :
+                                useDirectPasteMessage ? "WM_PASTE" : "Ctrl+V") +
                                "; text will be kept in clipboard for 5 seconds");
             _ = RestoreClipboardAfterDelayAsync(snapshot, clipboardSequence);
             return InsertionOutcome.Pasted;
@@ -269,6 +273,33 @@ public sealed class TextInserter
 
     private static bool IsModifierKeyDown(int key) => (GetAsyncKeyState(key) & 0x8000) != 0;
 
+    private static bool SendPasteMessage(nint targetWindow)
+    {
+        var targetThread = GetWindowThreadProcessId(targetWindow, out _);
+        if (targetThread == 0)
+            return false;
+
+        var currentThread = GetCurrentThreadId();
+        var attached = targetThread != currentThread &&
+                       AttachThreadInput(currentThread, targetThread, true);
+        try
+        {
+            var info = new GuiThreadInfo { CbSize = (uint)Marshal.SizeOf<GuiThreadInfo>() };
+            if (!GetGUIThreadInfo(targetThread, ref info) || info.HwndFocus == 0)
+            {
+                AppLog.Shared.Info("WM_PASTE skipped: focused control was not found");
+                return false;
+            }
+
+            return PostMessage(info.HwndFocus, 0x0302, 0, 0);
+        }
+        finally
+        {
+            if (attached)
+                AttachThreadInput(currentThread, targetThread, false);
+        }
+    }
+
     private static bool PostCtrlV()
     {
         var inputs = new[]
@@ -365,6 +396,28 @@ public sealed class TextInserter
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool BringWindowToTop(nint window);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public uint CbSize;
+        public uint Flags;
+        public nint HwndActive;
+        public nint HwndFocus;
+        public nint HwndCapture;
+        public nint HwndMenuOwner;
+        public nint HwndMoveSize;
+        public nint HwndCaret;
+        public System.Drawing.Rectangle RcCaret;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessage(nint window, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int key);
