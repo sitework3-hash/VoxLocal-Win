@@ -24,6 +24,8 @@ public static class Program
         Run("cloud model catalog", TestCloudModelCatalog);
         Run("cloud endpoint normalization", TestCloudEndpointNormalization);
         Run("cloud HTTP errors", TestCloudHttpErrors);
+        Run("DPAPI secret persistence", TestSecretPersistence);
+        Run("settings backward compatibility", TestSettingsBackwardCompatibility);
         Console.WriteLine($"[voxlocal-tests] passed {_passed} tests");
         return 0;
     }
@@ -184,6 +186,61 @@ public static class Program
         Equal("Провайдер отклонил API-ключ.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.Unauthorized));
         Equal("Провайдер сообщает о недостатке баланса.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.PaymentRequired));
         Equal("Провайдер не нашёл endpoint или указанную модель.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.NotFound));
+    }
+
+    private static void TestSecretPersistence()
+    {
+        const string secret = "тестовый-ключ-123";
+        var protectedValue = SecretProtector.Protect(secret);
+        True(!string.IsNullOrWhiteSpace(protectedValue));
+        False(protectedValue.Contains(secret, StringComparison.Ordinal));
+        Equal(secret, SecretProtector.Unprotect(protectedValue));
+
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VoxLocal.Tests", Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.json");
+            var store = new SettingsStore(path);
+            store.Current.OpenAiApiKeyProtected = protectedValue;
+            store.Save();
+
+            var serialized = System.IO.File.ReadAllText(path);
+            False(serialized.Contains(secret, StringComparison.Ordinal));
+            var reloaded = new SettingsStore(path);
+            Equal(secret, SecretProtector.Unprotect(reloaded.Current.OpenAiApiKeyProtected));
+
+            reloaded.Current.OpenAiApiKeyProtected = "";
+            reloaded.Save();
+            var afterDeletion = new SettingsStore(path);
+            Equal("", afterDeletion.Current.OpenAiApiKeyProtected);
+            False(System.IO.File.ReadAllText(path).Contains(protectedValue, StringComparison.Ordinal));
+        }
+        finally
+        {
+            System.IO.Directory.Delete(directory, true);
+        }
+    }
+
+    private static void TestSettingsBackwardCompatibility()
+    {
+        var directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VoxLocal.Tests", Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(directory);
+        try
+        {
+            var path = System.IO.Path.Combine(directory, "settings.json");
+            System.IO.File.WriteAllText(path, "{\"WhisperModel\":\"small\",\"UseExactAltSpace\":false}");
+            var store = new SettingsStore(path);
+            Equal("small", store.Current.WhisperModel);
+            False(store.Current.UseExactAltSpace);
+            False(store.Current.RefinementEnabled);
+            Equal("", store.Current.OpenAiApiKeyProtected);
+            Equal("https://triklz27.ru/v1", store.Current.OpenAiBaseUrl);
+        }
+        finally
+        {
+            System.IO.Directory.Delete(directory, true);
+        }
     }
 
     private static void Equal<T>(T expected, T actual)

@@ -32,6 +32,8 @@ public sealed class SettingsWindow : Window
     private readonly TextBox _cloudBaseUrl;
     private readonly ComboBox _cloudModel;
     private readonly System.Windows.Controls.PasswordBox _cloudApiKey;
+    private readonly Button _deleteCloudApiKey;
+    private readonly TextBlock _cloudApiKeyStatus;
     private readonly TextBox _cloudTimeout;
     private readonly Button _testConnection;
     private readonly TextBlock _connectionStatus;
@@ -168,6 +170,25 @@ public sealed class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Color.FromRgb(183, 194, 210))
         };
         output.Children.Add(_cloudApiKey);
+        var keyActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 7, 0, 0)
+        };
+        _deleteCloudApiKey = CreateButton("Удалить сохранённый ключ");
+        _deleteCloudApiKey.Click += DeleteCloudApiKey;
+        _deleteCloudApiKey.IsEnabled = !string.IsNullOrWhiteSpace(store.Current.OpenAiApiKeyProtected);
+        keyActions.Children.Add(_deleteCloudApiKey);
+        _cloudApiKeyStatus = new TextBlock
+        {
+            Text = _deleteCloudApiKey.IsEnabled ? "Ключ сохранён и защищён Windows DPAPI" : "Сохранённого ключа нет",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(91, 103, 121)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0)
+        };
+        keyActions.Children.Add(_cloudApiKeyStatus);
+        output.Children.Add(keyActions);
         _cloudTimeout = AddText(output, "Таймаут облачного запроса, секунд", store.Current.RefinementTimeoutSeconds.ToString("0.#"));
         _testConnection = CreateButton("Проверить подключение");
         _testConnection.HorizontalAlignment = HorizontalAlignment.Left;
@@ -244,6 +265,24 @@ public sealed class SettingsWindow : Window
         _modelStatus.Foreground = installed
             ? new SolidColorBrush(Color.FromRgb(34, 130, 84))
             : new SolidColorBrush(Color.FromRgb(180, 73, 58));
+    }
+
+    private void DeleteCloudApiKey(object sender, RoutedEventArgs args)
+    {
+        if (string.IsNullOrWhiteSpace(_store.Current.OpenAiApiKeyProtected))
+            return;
+        if (MessageBox.Show(
+                "Удалить сохранённый API-ключ? Для облачной обработки его потребуется ввести снова.",
+                "VoxLocal", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        _store.Current.OpenAiApiKeyProtected = "";
+        _store.Save();
+        _cloudApiKey.Clear();
+        _deleteCloudApiKey.IsEnabled = false;
+        _cloudApiKeyStatus.Text = "Сохранённого ключа нет";
+        _connectionStatus.Text = "API-ключ удалён из настроек.";
+        _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 130, 84));
     }
 
     private async void TestConnection(object sender, RoutedEventArgs args)

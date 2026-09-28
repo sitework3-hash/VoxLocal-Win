@@ -15,16 +15,28 @@ public sealed class SettingsStore
     public SettingsStore()
     {
         AppPaths.EnsureDirectories();
-        Current = Load();
+        SettingsFile = AppPaths.SettingsFile;
+        Current = Load(SettingsFile);
     }
 
-    private static AppSettings Load()
+    public SettingsStore(string settingsFile)
+    {
+        SettingsFile = settingsFile;
+        var directory = Path.GetDirectoryName(settingsFile);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+        Current = Load(settingsFile);
+    }
+
+    public string SettingsFile { get; }
+
+    private static AppSettings Load(string settingsFile)
     {
         try
         {
-            if (File.Exists(AppPaths.SettingsFile))
+            if (File.Exists(settingsFile))
                 return JsonSerializer.Deserialize<AppSettings>(
-                    File.ReadAllText(AppPaths.SettingsFile), JsonOptions) ?? new AppSettings();
+                    File.ReadAllText(settingsFile), JsonOptions) ?? new AppSettings();
         }
         catch (Exception error)
         {
@@ -35,8 +47,8 @@ public sealed class SettingsStore
 
     public void Save()
     {
-        var temporary = AppPaths.SettingsFile + ".tmp";
+        var temporary = SettingsFile + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(Current, JsonOptions));
-        File.Move(temporary, AppPaths.SettingsFile, true);
+        File.Move(temporary, SettingsFile, true);
     }
 }

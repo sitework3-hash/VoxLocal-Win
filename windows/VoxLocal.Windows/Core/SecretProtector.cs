@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using System.Security;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace VoxLocal.Win.Core;
@@ -25,6 +25,7 @@ public static class SecretProtector
         }
         finally
         {
+            CryptographicOperations.ZeroMemory(input);
             blob.Dispose();
             entropy.Dispose();
         }
@@ -37,15 +38,26 @@ public static class SecretProtector
         var protectedBytes = Convert.FromBase64String(value);
         var blob = new DataBlob(protectedBytes.Length, protectedBytes);
         var entropy = new DataBlob(Encoding.UTF8.GetByteCount("VoxLocal.CloudApiKey"), Encoding.UTF8.GetBytes("VoxLocal.CloudApiKey"));
+        nint description = nint.Zero;
         try
         {
-            if (!CryptUnprotectData(ref blob, out _, ref entropy, nint.Zero, nint.Zero,
+            if (!CryptUnprotectData(ref blob, out description, ref entropy, nint.Zero, nint.Zero,
                     CryptUnprotectUiForbidden, out var plainBlob))
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-            return Encoding.UTF8.GetString(ReadAndFree(plainBlob));
+            var plainBytes = ReadAndFree(plainBlob);
+            try
+            {
+                return Encoding.UTF8.GetString(plainBytes);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(plainBytes);
+            }
         }
         finally
         {
+            if (description != nint.Zero)
+                LocalFree(description);
             blob.Dispose();
             entropy.Dispose();
         }
