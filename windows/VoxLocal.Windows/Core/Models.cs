@@ -116,6 +116,11 @@ public sealed class AppSettings
 
 public sealed record WhisperTranscript(string Text, string? DetectedLanguage);
 
+public static class DictationTextPolicy
+{
+    public static bool HasUsableText(string? text) => !string.IsNullOrWhiteSpace(text);
+}
+
 public sealed record WhisperModelInfo(string Name, int ApproxMb, bool Multilingual)
 {
     public string FileName => $"ggml-{Name}.bin";

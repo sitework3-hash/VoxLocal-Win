@@ -19,6 +19,8 @@ public static class Program
         Run("model catalog", TestModelCatalog);
         Run("transcription history", TestTranscriptionHistory);
         Run("Ollama loopback protection", TestLoopbackProtection);
+        Run("empty transcription policy", TestEmptyTranscriptionPolicy);
+        Run("duplicate processing state guard", TestDuplicateProcessingStateGuard);
         Console.WriteLine($"[voxlocal-tests] passed {_passed} tests");
         return 0;
     }
@@ -135,6 +137,25 @@ public static class Program
         True(OllamaRefiner.IsLoopbackEndpoint("http://127.0.0.1:11434"));
         True(OllamaRefiner.IsLoopbackEndpoint("http://localhost:11434"));
         False(OllamaRefiner.IsLoopbackEndpoint("https://example.com"));
+    }
+
+    private static void TestEmptyTranscriptionPolicy()
+    {
+        False(DictationTextPolicy.HasUsableText(null));
+        False(DictationTextPolicy.HasUsableText(string.Empty));
+        False(DictationTextPolicy.HasUsableText("  \r\n  "));
+        True(DictationTextPolicy.HasUsableText("Привет"));
+    }
+
+    private static void TestDuplicateProcessingStateGuard()
+    {
+        var state = new DictationStateMachine();
+        state.Transition(DictationState.Preparing);
+        state.Transition(DictationState.Recording);
+        True(state.CanTransition(DictationState.Stopping));
+        state.Transition(DictationState.Stopping);
+        False(state.CanTransition(DictationState.Stopping));
+        True(state.CanTransition(DictationState.Transcribing));
     }
 
     private static void Equal<T>(T expected, T actual)

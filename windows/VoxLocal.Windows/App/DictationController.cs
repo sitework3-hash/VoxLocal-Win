@@ -158,7 +158,7 @@ public sealed class DictationController : IDisposable
                                $"textLength={transcript.Text.Length}, detectedLanguage={transcript.DetectedLanguage ?? "unknown"}");
 
             var text = transcript.Text;
-            if (string.IsNullOrWhiteSpace(text))
+            if (!DictationTextPolicy.HasUsableText(text))
             {
                 AppLog.Shared.Info("Transcription produced empty text; refinement and insertion skipped");
                 Transition(DictationState.Completed, "Ничего не распознано");
