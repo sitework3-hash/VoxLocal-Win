@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using VoxLocal.Win.Core;
 using VoxLocal.Win.Services;
 
@@ -69,9 +70,16 @@ public sealed class DictationController : IDisposable
     public void Start()
     {
         if (State != DictationState.Idle)
+        {
+            AppLog.Shared.Info($"Dictation start ignored: state={State}");
             return;
+        }
         try
         {
+            AppLog.Shared.Info($"Dictation start: engine={_settings.Current.RecognitionEngine}, " +
+                               $"hotkeyMode={_settings.Current.HotkeyMode}, " +
+                               $"insertionMode={_settings.Current.InsertionMode}, " +
+                               $"refinement={_settings.Current.RefinementEnabled}");
             Transition(DictationState.Preparing, "Подготовка…");
             if (_settings.Current.RecognitionEngine == RecognitionEngine.SherpaTOneRussian)
             {
@@ -86,8 +94,10 @@ public sealed class DictationController : IDisposable
             }
 
             _targetWindow = TextInserter.CaptureForegroundWindow();
+            AppLog.Shared.Info($"Target window captured: handle=0x{_targetWindow.ToInt64():X}");
             _pipelineCancellation = new CancellationTokenSource();
             _recorder.Start();
+            AppLog.Shared.Info("Audio recording started");
             _hotkeys.CaptureEscape = true;
             Transition(DictationState.Recording, "Слушаю…");
         }
@@ -100,7 +110,12 @@ public sealed class DictationController : IDisposable
     public async Task StopAndProcessAsync()
     {
         if (State != DictationState.Recording)
+        {
+            AppLog.Shared.Info($"Dictation stop ignored: state={State}");
             return;
+        }
+        var pipelineTimer = Stopwatch.StartNew();
+        AppLog.Shared.Info("Dictation pipeline started");
         Transition(DictationState.Stopping, "Завершаю запись…");
         var cancellationToken = _pipelineCancellation?.Token ?? CancellationToken.None;
         string? audioPath = null;
@@ -111,9 +126,12 @@ public sealed class DictationController : IDisposable
             await Task.Delay(180, cancellationToken);
             var recording = await _recorder.StopAsync();
             audioPath = recording.FilePath;
+            AppLog.Shared.Info($"Audio recording stopped: durationMs={recording.Duration.TotalMilliseconds:F0}, " +
+                               $"fileBytes={new FileInfo(recording.FilePath).Length}");
             cancellationToken.ThrowIfCancellationRequested();
 
             Transition(DictationState.Transcribing, "Распознаю…");
+            var transcriptionTimer = Stopwatch.StartNew();
             WhisperTranscript transcript;
             if (_settings.Current.RecognitionEngine == RecognitionEngine.SherpaTOneRussian)
             {
@@ -135,27 +153,50 @@ public sealed class DictationController : IDisposable
                     cancellationToken);
             }
 
+            transcriptionTimer.Stop();
+            AppLog.Shared.Info($"Transcription completed: elapsedMs={transcriptionTimer.ElapsedMilliseconds}, " +
+                               $"textLength={transcript.Text.Length}, detectedLanguage={transcript.DetectedLanguage ?? "unknown"}");
+
             var text = transcript.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                AppLog.Shared.Info("Transcription produced empty text; refinement and insertion skipped");
+                Transition(DictationState.Completed, "Ничего не распознано");
+                await ResetAfterDelayAsync();
+                return;
+            }
             if (_settings.Current.RefinementEnabled &&
                 _settings.Current.RefinementPreset != RefinementPreset.RawTranscript)
             {
                 Transition(DictationState.Refining, "Уточняю текст…");
+                var refinementTimer = Stopwatch.StartNew();
                 try
                 {
                     text = await _refiner.RefineAsync(
                         text, transcript.DetectedLanguage, _settings.Current, cancellationToken);
+                    refinementTimer.Stop();
+                    AppLog.Shared.Info($"Refinement completed: elapsedMs={refinementTimer.ElapsedMilliseconds}, " +
+                                       $"inputLength={transcript.Text.Length}, outputLength={text.Length}, " +
+                                       $"preset={_settings.Current.RefinementPreset}");
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    AppLog.Shared.Info($"Refinement skipped: {error.Message}");
+                    refinementTimer.Stop();
+                    AppLog.Shared.Info($"Refinement skipped: elapsedMs={refinementTimer.ElapsedMilliseconds}, " +
+                                       $"reason={error.Message}");
                 }
             }
 
             _history.Add(text);
+            AppLog.Shared.Info($"Transcript stored in history: textLength={text.Length}");
 
             Transition(DictationState.Inserting, "Вставляю…");
+            var insertionTimer = Stopwatch.StartNew();
             var outcome = await _inserter.InsertAsync(
                 text, _targetWindow, _settings.Current.InsertionMode, cancellationToken);
+            insertionTimer.Stop();
+            AppLog.Shared.Info($"Insertion completed: elapsedMs={insertionTimer.ElapsedMilliseconds}, outcome={outcome}, " +
+                               $"textLength={text.Length}");
             var message = outcome switch
             {
                 InsertionOutcome.Pasted => "Текст отправлен — буфер вернётся через 5 с",
@@ -163,16 +204,22 @@ public sealed class DictationController : IDisposable
                 _ => "Текст скопирован — вставьте Ctrl+V"
             };
             Transition(DictationState.Completed, message);
+            pipelineTimer.Stop();
+            AppLog.Shared.Info($"Dictation pipeline completed: elapsedMs={pipelineTimer.ElapsedMilliseconds}, outcome={outcome}");
             await ResetAfterDelayAsync();
         }
         catch (OperationCanceledException)
         {
+            pipelineTimer.Stop();
+            AppLog.Shared.Info($"Dictation pipeline cancelled: elapsedMs={pipelineTimer.ElapsedMilliseconds}");
             if (State is not DictationState.Cancelled and not DictationState.Idle)
                 Transition(DictationState.Cancelled, "Отменено");
             await ResetAfterDelayAsync();
         }
         catch (Exception error)
         {
+            pipelineTimer.Stop();
+            AppLog.Shared.Error($"Dictation pipeline failed: elapsedMs={pipelineTimer.ElapsedMilliseconds}, {error}");
             Fail(error);
         }
         finally
@@ -180,7 +227,15 @@ public sealed class DictationController : IDisposable
             _hotkeys.CaptureEscape = false;
             if (audioPath is not null)
             {
-                try { File.Delete(audioPath); } catch { }
+                try
+                {
+                    File.Delete(audioPath);
+                    AppLog.Shared.Info("Temporary audio deleted");
+                }
+                catch (Exception error)
+                {
+                    AppLog.Shared.Info($"Temporary audio deletion skipped: {error.Message}");
+                }
             }
         }
     }
