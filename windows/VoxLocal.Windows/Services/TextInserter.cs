@@ -349,7 +349,7 @@ public sealed class TextInserter
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int key);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", EntryPoint = "IsWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowNative(nint window);
 
