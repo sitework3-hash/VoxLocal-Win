@@ -23,6 +23,25 @@ public sealed class TextInserter
 
     public static nint CaptureForegroundWindow() => GetForegroundWindow();
 
+    public static bool IsWindowValid(nint window) => window != 0 && IsWindow(window);
+
+    public static string DescribeCapturedWindow(nint window)
+    {
+        if (!IsWindowValid(window))
+            return "invalid window";
+
+        try
+        {
+            _ = GetWindowThreadProcessId(window, out var processId);
+            var process = Process.GetProcessById((int)processId);
+            return $"process={process.ProcessName}, pid={process.Id}, title=\"{GetWindowTitle(window)}\"";
+        }
+        catch
+        {
+            return "window details unavailable";
+        }
+    }
+
     public async Task<InsertionOutcome> InsertAsync(
         string text,
         nint targetWindow,
@@ -185,15 +204,19 @@ public sealed class TextInserter
         catch { return false; }
     }
 
-    private static string DescribeWindow(nint window)
+    private static string GetWindowTitle(nint window)
     {
-        try
-        {
-            _ = GetWindowThreadProcessId(window, out var processId);
-            return Process.GetProcessById((int)processId).ProcessName;
-        }
-        catch { return "unknown window"; }
+        var length = GetWindowTextLength(window);
+        if (length <= 0)
+            return "";
+        var builder = new System.Text.StringBuilder(length + 1);
+        _ = GetWindowText(window, builder, builder.Capacity);
+        return builder.ToString().Replace('"', '\'');
     }
+
+    private static bool IsWindow(nint window) => IsWindowNative(window);
+
+    private static string DescribeWindow(nint window) => DescribeCapturedWindow(window);
 
     private static bool PostCtrlV()
     {
@@ -291,6 +314,16 @@ public sealed class TextInserter
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool BringWindowToTop(nint window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowNative(nint window);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(nint window);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(nint window, System.Text.StringBuilder text, int maxCount);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint window, out uint processId);

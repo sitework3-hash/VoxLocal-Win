@@ -94,7 +94,8 @@ public sealed class DictationController : IDisposable
             }
 
             _targetWindow = TextInserter.CaptureForegroundWindow();
-            AppLog.Shared.Info($"Target window captured: handle=0x{_targetWindow.ToInt64():X}");
+            AppLog.Shared.Info($"Target window captured: handle=0x{_targetWindow.ToInt64():X}, " +
+                               TextInserter.DescribeCapturedWindow(_targetWindow));
             _pipelineCancellation = new CancellationTokenSource();
             _recorder.Start();
             AppLog.Shared.Info("Audio recording started");
@@ -158,6 +159,7 @@ public sealed class DictationController : IDisposable
                                $"textLength={transcript.Text.Length}, detectedLanguage={transcript.DetectedLanguage ?? "unknown"}");
 
             var text = transcript.Text;
+            var refinementFallback = false;
             if (!DictationTextPolicy.HasUsableText(text))
             {
                 AppLog.Shared.Info("Transcription produced empty text; refinement and insertion skipped");
@@ -182,6 +184,7 @@ public sealed class DictationController : IDisposable
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     refinementTimer.Stop();
+                    refinementFallback = true;
                     AppLog.Shared.Info($"Refinement skipped: elapsedMs={refinementTimer.ElapsedMilliseconds}, " +
                                        $"reason={error.Message}");
                 }
@@ -199,8 +202,11 @@ public sealed class DictationController : IDisposable
                                $"textLength={text.Length}");
             var message = outcome switch
             {
+                InsertionOutcome.Pasted when refinementFallback => "Текст вставлен — обработка недоступна, использован исходный текст",
                 InsertionOutcome.Pasted => "Текст отправлен — буфер вернётся через 5 с",
+                InsertionOutcome.SecureField when refinementFallback => "Поле защищено — скопирован исходный текст",
                 InsertionOutcome.SecureField => "Поле защищено — текст скопирован",
+                _ when refinementFallback => "Исходный текст скопирован — вставьте Ctrl+V",
                 _ => "Текст скопирован — вставьте Ctrl+V"
             };
             Transition(DictationState.Completed, message);
