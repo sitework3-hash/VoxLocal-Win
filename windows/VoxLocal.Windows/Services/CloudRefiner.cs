@@ -6,6 +6,27 @@ using VoxLocal.Win.Core;
 
 namespace VoxLocal.Win.Services;
 
+public enum CloudRefinementError
+{
+    Configuration,
+    Authentication,
+    InsufficientBalance,
+    ModelOrEndpointNotFound,
+    RateLimited,
+    Timeout,
+    ServerUnavailable,
+    InvalidResponse,
+    RequestRejected
+}
+
+public sealed class CloudRefinementException : Exception
+{
+    public CloudRefinementException(CloudRefinementError error, string message, Exception? innerException = null)
+        : base(message, innerException) => Error = error;
+
+    public CloudRefinementError Error { get; }
+}
+
 public sealed class CloudRefiner
 {
     public async Task<string> RefineAsync(string transcript, string? language, AppSettings settings, CancellationToken cancellationToken)
@@ -37,7 +58,7 @@ public sealed class CloudRefiner
             cancellationToken,
             validateRefinement: false);
         if (string.IsNullOrWhiteSpace(responseText))
-            throw new InvalidOperationException("Провайдер вернул пустой ответ.");
+            throw new CloudRefinementException(CloudRefinementError.InvalidResponse, "Провайдер вернул пустой ответ.");
     }
 
     private static async Task<string> SendAsync(
@@ -52,9 +73,11 @@ public sealed class CloudRefiner
         bool validateRefinement = true)
     {
         if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(model))
-            throw new InvalidOperationException("Укажите Base URL и модель облачного провайдера.");
+            throw new CloudRefinementException(CloudRefinementError.Configuration,
+                "Укажите Base URL и модель облачного провайдера.");
         if (string.IsNullOrWhiteSpace(apiKey))
-            throw new InvalidOperationException("Укажите API-ключ облачного провайдера в настройках.");
+            throw new CloudRefinementException(CloudRefinementError.Configuration,
+                "Укажите API-ключ облачного провайдера в настройках.");
         var endpoint = BuildChatCompletionsUri(baseUrl);
 
         using var handler = new HttpClientHandler { AllowAutoRedirect = false };
@@ -74,30 +97,49 @@ public sealed class CloudRefiner
             temperature = 0.2,
             stream = false
         };
-        using var response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException(DescribeHttpError(response.StatusCode));
-
+        HttpResponseMessage response;
         try
         {
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-            var root = document.RootElement;
-            if (!root.TryGetProperty("choices", out var choices) ||
-                choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0 ||
-                !choices[0].TryGetProperty("message", out var message) ||
-                !message.TryGetProperty("content", out var contentElement) ||
-                contentElement.ValueKind != JsonValueKind.String)
-                throw new InvalidOperationException("В ответе провайдера отсутствует текст модели.");
-            var content = contentElement.GetString() ?? string.Empty;
-            if (!validateRefinement)
-                return content;
-            return RefinementSafeguard.TryAccept(transcript, content, out var accepted)
-                ? accepted
-                : transcript;
+            response = await client.PostAsJsonAsync(endpoint, request, cancellationToken);
         }
-        catch (JsonException error)
+        catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new InvalidOperationException("Провайдер вернул ответ не в формате chat/completions.", error);
+            throw new CloudRefinementException(CloudRefinementError.Timeout,
+                "Провайдер не ответил за отведённое время.", error);
+        }
+        catch (HttpRequestException error)
+        {
+            throw new CloudRefinementException(CloudRefinementError.ServerUnavailable,
+                "Не удалось подключиться к облачному провайдеру.", error);
+        }
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+                throw CreateHttpException(response.StatusCode);
+
+            try
+            {
+                using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+                var root = document.RootElement;
+                if (!root.TryGetProperty("choices", out var choices) ||
+                    choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0 ||
+                    !choices[0].TryGetProperty("message", out var message) ||
+                    !message.TryGetProperty("content", out var contentElement) ||
+                    contentElement.ValueKind != JsonValueKind.String)
+                    throw new CloudRefinementException(CloudRefinementError.InvalidResponse,
+                        "В ответе провайдера отсутствует текст модели.");
+                var content = contentElement.GetString() ?? string.Empty;
+                if (!validateRefinement)
+                    return content;
+                return RefinementSafeguard.TryAccept(transcript, content, out var accepted)
+                    ? accepted
+                    : transcript;
+            }
+            catch (JsonException error)
+            {
+                throw new CloudRefinementException(CloudRefinementError.InvalidResponse,
+                    "Провайдер вернул ответ не в формате chat/completions.", error);
+            }
         }
     }
 
@@ -106,12 +148,28 @@ public sealed class CloudRefiner
         if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https") ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
-            throw new InvalidOperationException("Base URL должен быть корректным HTTP(S)-адресом без параметров.");
+            throw new CloudRefinementException(CloudRefinementError.Configuration,
+                "Base URL должен быть корректным HTTP(S)-адресом без параметров.");
 
         var normalized = uri.AbsoluteUri.TrimEnd('/');
         if (!uri.AbsolutePath.TrimEnd('/').EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
             normalized += "/chat/completions";
         return new Uri(normalized);
+    }
+
+    public static CloudRefinementException CreateHttpException(HttpStatusCode statusCode)
+    {
+        var error = statusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => CloudRefinementError.Authentication,
+            HttpStatusCode.PaymentRequired => CloudRefinementError.InsufficientBalance,
+            HttpStatusCode.NotFound => CloudRefinementError.ModelOrEndpointNotFound,
+            HttpStatusCode.RequestTimeout or HttpStatusCode.GatewayTimeout => CloudRefinementError.Timeout,
+            HttpStatusCode.TooManyRequests => CloudRefinementError.RateLimited,
+            _ when (int)statusCode >= 500 => CloudRefinementError.ServerUnavailable,
+            _ => CloudRefinementError.RequestRejected
+        };
+        return new CloudRefinementException(error, DescribeHttpError(statusCode));
     }
 
     public static string DescribeHttpError(HttpStatusCode statusCode) => statusCode switch

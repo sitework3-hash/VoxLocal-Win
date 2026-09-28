@@ -305,6 +305,11 @@ public sealed class SettingsWindow : Window
             _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 130, 84));
             _connectionStatus.Text = "✓ Подключение успешно, модель ответила.";
         }
+        catch (CloudRefinementException error) when (error.Error == CloudRefinementError.Timeout)
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = error.Message;
+        }
         catch (TaskCanceledException)
         {
             _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));

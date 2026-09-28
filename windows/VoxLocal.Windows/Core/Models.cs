@@ -126,7 +126,7 @@ public sealed class AppSettings
     public string OpenAiBaseUrl { get; set; } = "https://triklz27.ru/v1";
     public string OpenAiModel { get; set; } = "gemini-3.6-flash";
     public string OpenAiApiKeyProtected { get; set; } = "";
-    public double RefinementTimeoutSeconds { get; set; } = 20;
+    public double RefinementTimeoutSeconds { get; set; } = 8;
 
     [JsonIgnore]
     public string WhisperLanguageCode => SpokenLanguage switch

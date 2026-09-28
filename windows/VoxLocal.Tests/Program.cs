@@ -215,6 +215,7 @@ public static class Program
         True(OpenAiCompatibleModelCatalog.Models.Contains("deepseek-v4.1-flash"));
         True(OpenAiCompatibleModelCatalog.Models.Contains("gpt-6-luna"));
         Equal("https://triklz27.ru/v1", new AppSettings().OpenAiBaseUrl);
+        Equal(8d, new AppSettings().RefinementTimeoutSeconds);
         Equal(RefinementProvider.Ollama, new AppSettings().RefinementProvider);
     }
 
@@ -223,7 +224,7 @@ public static class Program
         Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1").AbsoluteUri);
         Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1/").AbsoluteUri);
         Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1/chat/completions").AbsoluteUri);
-        Throws<InvalidOperationException>(() => CloudRefiner.BuildChatCompletionsUri("not-a-url"));
+        Throws<CloudRefinementException>(() => CloudRefiner.BuildChatCompletionsUri("not-a-url"));
     }
 
     private static void TestCloudHttpErrors()
@@ -231,6 +232,12 @@ public static class Program
         Equal("Провайдер отклонил API-ключ.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.Unauthorized));
         Equal("Провайдер сообщает о недостатке баланса.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.PaymentRequired));
         Equal("Провайдер не нашёл endpoint или указанную модель.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.NotFound));
+        Equal(CloudRefinementError.Authentication, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.Unauthorized).Error);
+        Equal(CloudRefinementError.InsufficientBalance, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.PaymentRequired).Error);
+        Equal(CloudRefinementError.ModelOrEndpointNotFound, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.NotFound).Error);
+        Equal(CloudRefinementError.RateLimited, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.TooManyRequests).Error);
+        Equal(CloudRefinementError.Timeout, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.GatewayTimeout).Error);
+        Equal(CloudRefinementError.ServerUnavailable, CloudRefiner.CreateHttpException(System.Net.HttpStatusCode.BadGateway).Error);
     }
 
     private static void TestSecretPersistence()
@@ -281,6 +288,7 @@ public static class Program
             False(store.Current.RefinementEnabled);
             Equal("", store.Current.OpenAiApiKeyProtected);
             Equal("https://triklz27.ru/v1", store.Current.OpenAiBaseUrl);
+            Equal(8d, store.Current.RefinementTimeoutSeconds);
         }
         finally
         {
