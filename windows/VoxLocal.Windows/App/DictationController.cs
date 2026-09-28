@@ -167,8 +167,7 @@ public sealed class DictationController : IDisposable
                 await ResetAfterDelayAsync();
                 return;
             }
-            if (_settings.Current.RefinementEnabled &&
-                _settings.Current.RefinementPreset != RefinementPreset.RawTranscript)
+            if (DictationTextPolicy.ShouldRefine(_settings.Current))
             {
                 Transition(DictationState.Refining, "Уточняю текст…");
                 var refinementTimer = Stopwatch.StartNew();

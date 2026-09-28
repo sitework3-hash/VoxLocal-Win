@@ -28,6 +28,7 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _clipboardOnly;
     private readonly CheckBox _refinement;
     private readonly ComboBox _refinementProvider;
+    private readonly ComboBox _refinementPreset;
     private readonly TextBox _ollamaModel;
     private readonly TextBox _cloudBaseUrl;
     private readonly ComboBox _cloudModel;
@@ -154,6 +155,8 @@ public sealed class SettingsWindow : Window
         _clipboardOnly = AddCheck(
             output, "Только копировать текст в буфер", store.Current.InsertionMode == InsertionMode.ClipboardOnly);
         _refinement = AddCheck(output, "Включить облачную/локальную постобработку", store.Current.RefinementEnabled);
+        _refinementPreset = AddCombo(output, "Режим обработки", RefinementPresetLabels.Cast<object>());
+        _refinementPreset.SelectedIndex = (int)store.Current.RefinementPreset;
         _refinementProvider = AddCombo(output, "Провайдер", Enum.GetValues<RefinementProvider>().Cast<object>());
         _refinementProvider.SelectedItem = store.Current.RefinementProvider;
         _ollamaModel = AddText(output, "Модель Ollama", store.Current.OllamaModel);
@@ -367,6 +370,9 @@ public sealed class SettingsWindow : Window
             ? InsertionMode.ClipboardOnly
             : InsertionMode.Automatic;
         _store.Current.RefinementEnabled = _refinement.IsChecked == true;
+        _store.Current.RefinementPreset = Enum.IsDefined(typeof(RefinementPreset), _refinementPreset.SelectedIndex)
+            ? (RefinementPreset)_refinementPreset.SelectedIndex
+            : RefinementPreset.CleanDictation;
         _store.Current.RefinementProvider = (RefinementProvider)(_refinementProvider.SelectedItem ?? RefinementProvider.Ollama);
         _store.Current.OllamaModel = _ollamaModel.Text.Trim();
         _store.Current.OpenAiBaseUrl = _cloudBaseUrl.Text.Trim();
@@ -461,6 +467,15 @@ public sealed class SettingsWindow : Window
         card.Child = content;
         return card;
     }
+
+    private static readonly string[] RefinementPresetLabels =
+    [
+        "Без обработки — исходный текст",
+        "Чистый текст — пунктуация и очевидные ошибки",
+        "Кратко — убрать повторы без потери информации",
+        "Деловой стиль — нейтральное оформление",
+        "Сохранить формулировки — только пунктуация"
+    ];
 
     private static StackPanel AddSection(Panel parent, string title)
     {

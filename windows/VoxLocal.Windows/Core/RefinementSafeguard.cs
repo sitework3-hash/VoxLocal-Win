@@ -7,9 +7,11 @@ public static class RefinementSafeguard
     private static readonly string[] RefusalMarkers =
     [
         "as an ai", "i'm sorry", "i am sorry", "i cannot", "i can't",
-        "here is the corrected", "here's the corrected", "sure,",
+        "here is the corrected", "here's the corrected", "corrected text", "edited text",
+        "sure,", "result:",
         "как ии", "как искусственный интеллект", "я не могу", "извините",
-        "вот исправленный", "конечно,"
+        "вот исправленный", "исправленный текст", "отредактированный текст",
+        "готовый текст", "результат:", "конечно,"
     ];
 
     public static bool TryAccept(string original, string refined, out string accepted)
@@ -18,7 +20,8 @@ public static class RefinementSafeguard
         if (accepted.Length == 0)
             return false;
         var lower = accepted.ToLowerInvariant();
-        if (RefusalMarkers.Any(lower.StartsWith))
+        var markerCandidate = lower.TrimStart(' ', '\t', '\r', '\n', '#', '*', '-', '>', '"', '\'', '«');
+        if (RefusalMarkers.Any(markerCandidate.StartsWith))
             return false;
         var maxLength = Math.Max((int)(original.Length * 1.6), original.Length + 120);
         if (accepted.Length > maxLength)

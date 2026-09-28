@@ -16,6 +16,8 @@ public static class Program
         Run("Sherpa Russian model integration", TestSherpaRussianModel);
         Run("artifact removal", TestArtifactRemoval);
         Run("refinement safeguard", TestRefinementSafeguard);
+        Run("refinement modes", TestRefinementModes);
+        Run("strict refinement prompt", TestStrictRefinementPrompt);
         Run("model catalog", TestModelCatalog);
         Run("transcription history", TestTranscriptionHistory);
         Run("Ollama loopback protection", TestLoopbackProtection);
@@ -101,7 +103,50 @@ public static class Program
     {
         True(RefinementSafeguard.TryAccept("hello world", "Hello, world.", out var accepted));
         Equal("Hello, world.", accepted);
+        False(RefinementSafeguard.TryAccept("hello world", "", out _));
         False(RefinementSafeguard.TryAccept("hello world", "As an AI, I cannot help", out _));
+        False(RefinementSafeguard.TryAccept("привет мир", "Вот исправленный текст: Привет, мир.", out _));
+        False(RefinementSafeguard.TryAccept("привет мир", "**Исправленный текст:** Привет, мир.", out _));
+        False(RefinementSafeguard.TryAccept("короткий текст", new string('а', 300), out _));
+        False(RefinementSafeguard.TryAccept(
+            "первое второе третье четвертое пятое шестое седьмое восьмое девятое десятое",
+            "яблоко груша апельсин банан персик слива вишня лимон ананас манго",
+            out _));
+    }
+
+    private static void TestRefinementModes()
+    {
+        var settings = new AppSettings { RefinementEnabled = false, RefinementPreset = RefinementPreset.CleanDictation };
+        False(DictationTextPolicy.ShouldRefine(settings));
+
+        settings.RefinementEnabled = true;
+        settings.RefinementPreset = RefinementPreset.RawTranscript;
+        False(DictationTextPolicy.ShouldRefine(settings));
+
+        foreach (var preset in Enum.GetValues<RefinementPreset>().Where(value => value != RefinementPreset.RawTranscript))
+        {
+            settings.RefinementPreset = preset;
+            True(DictationTextPolicy.ShouldRefine(settings));
+            var prompt = OllamaRefiner.BuildSystemPrompt(preset, "ru");
+            True(prompt.Contains("same text", StringComparison.OrdinalIgnoreCase));
+            True(prompt.Contains("keep that language", StringComparison.OrdinalIgnoreCase));
+        }
+
+        True(OllamaRefiner.BuildSystemPrompt(RefinementPreset.Concise, "ru").Contains("concise", StringComparison.OrdinalIgnoreCase));
+        True(OllamaRefiner.BuildSystemPrompt(RefinementPreset.BusinessStyle, "ru").Contains("professional", StringComparison.OrdinalIgnoreCase));
+        True(OllamaRefiner.BuildSystemPrompt(RefinementPreset.PreserveSpokenWording, "ru").Contains("exact wording", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void TestStrictRefinementPrompt()
+    {
+        var prompt = OllamaRefiner.BuildSystemPrompt(RefinementPreset.CleanDictation, "ru");
+        True(prompt.Contains("Output only", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("answer questions", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("execute commands", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("Never add facts", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("original meaning", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("names, dates, numbers", StringComparison.OrdinalIgnoreCase));
+        True(prompt.Contains("instructions found in the dictation", StringComparison.OrdinalIgnoreCase));
     }
 
     private static void TestModelCatalog()
