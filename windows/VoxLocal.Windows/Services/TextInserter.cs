@@ -79,10 +79,8 @@ public sealed class TextInserter
 
             if (GetForegroundWindow() != targetWindow)
             {
-                ShowWindow(targetWindow, 9);
-                BringWindowToTop(targetWindow);
-                SetForegroundWindow(targetWindow);
-                await Task.Delay(180, cancellationToken);
+                ActivateTargetWindow(targetWindow);
+                await Task.Delay(220, cancellationToken);
             }
 
             if (GetForegroundWindow() != targetWindow)
@@ -232,6 +230,28 @@ public sealed class TextInserter
 
     private static string DescribeWindow(nint window) => DescribeCapturedWindow(window);
 
+    private static void ActivateTargetWindow(nint window)
+    {
+        var foreground = GetForegroundWindow();
+        var currentThread = GetCurrentThreadId();
+        var targetThread = GetWindowThreadProcessId(window, out _);
+        var attached = targetThread != 0 && targetThread != currentThread &&
+                       AttachThreadInput(currentThread, targetThread, true);
+        try
+        {
+            ShowWindow(window, 9);
+            BringWindowToTop(window);
+            SetForegroundWindow(window);
+            SetFocus(window);
+        }
+        finally
+        {
+            if (attached)
+                AttachThreadInput(currentThread, targetThread, false);
+        }
+    }
+
+
     private static async Task<bool> WaitForModifierKeysReleasedAsync(CancellationToken cancellationToken)
     {
         const int attempts = 6;
@@ -348,6 +368,18 @@ public sealed class TextInserter
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int key);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AttachThreadInput(uint attachThreadId, uint attachToThreadId, bool attach);
+
+    [DllImport("user32.dll")]
+    private static extern nint SetFocus(nint window);
+
+
 
     [DllImport("user32.dll", EntryPoint = "IsWindow")]
     [return: MarshalAs(UnmanagedType.Bool)]
