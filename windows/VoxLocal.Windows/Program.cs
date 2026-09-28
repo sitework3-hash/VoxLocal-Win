@@ -40,7 +40,7 @@ public static class Program
         using var recorder = new AudioRecorder();
         var transcriber = new WhisperTranscriber();
         using var sherpa = new SherpaTOneTranscriber();
-        var refiner = new OllamaRefiner();
+        var refiner = new CloudRefiner();
         var inserter = new TextInserter(application.Dispatcher);
         using var dictation = new DictationController(
             settings, history, recorder, models, transcriber, sherpa, refiner, inserter, hotkeys);

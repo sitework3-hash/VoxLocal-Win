@@ -21,6 +21,7 @@ public static class Program
         Run("Ollama loopback protection", TestLoopbackProtection);
         Run("empty transcription policy", TestEmptyTranscriptionPolicy);
         Run("duplicate processing state guard", TestDuplicateProcessingStateGuard);
+        Run("cloud model catalog", TestCloudModelCatalog);
         Console.WriteLine($"[voxlocal-tests] passed {_passed} tests");
         return 0;
     }
@@ -156,6 +157,16 @@ public static class Program
         state.Transition(DictationState.Stopping);
         False(state.CanTransition(DictationState.Stopping));
         True(state.CanTransition(DictationState.Transcribing));
+    }
+
+    private static void TestCloudModelCatalog()
+    {
+        Equal(39, OpenAiCompatibleModelCatalog.Models.Count);
+        True(OpenAiCompatibleModelCatalog.Models.Contains("gemini-3.6-flash"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("deepseek-v4.1-flash"));
+        True(OpenAiCompatibleModelCatalog.Models.Contains("gpt-6-luna"));
+        Equal("https://triklz27.ru/v1", new AppSettings().OpenAiBaseUrl);
+        Equal(RefinementProvider.Ollama, new AppSettings().RefinementProvider);
     }
 
     private static void Equal<T>(T expected, T actual)

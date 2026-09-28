@@ -13,7 +13,7 @@ public sealed class DictationController : IDisposable
     private readonly ModelManager _models;
     private readonly WhisperTranscriber _transcriber;
     private readonly SherpaTOneTranscriber _sherpa;
-    private readonly OllamaRefiner _refiner;
+    private readonly CloudRefiner _refiner;
     private readonly TextInserter _inserter;
     private readonly GlobalHotkeyService _hotkeys;
     private CancellationTokenSource? _pipelineCancellation;
@@ -31,7 +31,7 @@ public sealed class DictationController : IDisposable
         ModelManager models,
         WhisperTranscriber transcriber,
         SherpaTOneTranscriber sherpa,
-        OllamaRefiner refiner,
+        CloudRefiner refiner,
         TextInserter inserter,
         GlobalHotkeyService hotkeys)
     {

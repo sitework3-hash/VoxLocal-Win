@@ -27,7 +27,11 @@ public sealed class SettingsWindow : Window
     private readonly CheckBox _exactAltSpace;
     private readonly CheckBox _clipboardOnly;
     private readonly CheckBox _refinement;
+    private readonly ComboBox _refinementProvider;
     private readonly TextBox _ollamaModel;
+    private readonly TextBox _cloudBaseUrl;
+    private readonly ComboBox _cloudModel;
+    private readonly System.Windows.Controls.PasswordBox _cloudApiKey;
     private readonly ProgressBar _downloadProgress;
     private readonly TextBlock _modelStatus;
 
@@ -144,8 +148,23 @@ public sealed class SettingsWindow : Window
         var output = AddSection(content, "Вставка и обработка текста");
         _clipboardOnly = AddCheck(
             output, "Только копировать текст в буфер", store.Current.InsertionMode == InsertionMode.ClipboardOnly);
-        _refinement = AddCheck(output, "Refinement через локальную Ollama", store.Current.RefinementEnabled);
+        _refinement = AddCheck(output, "Включить облачную/локальную постобработку", store.Current.RefinementEnabled);
+        _refinementProvider = AddCombo(output, "Провайдер", Enum.GetValues<RefinementProvider>().Cast<object>());
+        _refinementProvider.SelectedItem = store.Current.RefinementProvider;
         _ollamaModel = AddText(output, "Модель Ollama", store.Current.OllamaModel);
+        _cloudBaseUrl = AddText(output, "Cloud Base URL", store.Current.OpenAiBaseUrl);
+        _cloudModel = AddCombo(output, "Cloud model", OpenAiCompatibleModelCatalog.Models.Cast<object>());
+        _cloudModel.IsEditable = true;
+        _cloudModel.SelectedItem = store.Current.OpenAiModel;
+        output.Children.Add(FieldLabel("Cloud API key (не сохраняется в открытом виде)"));
+        _cloudApiKey = new System.Windows.Controls.PasswordBox
+        {
+            MinHeight = 32,
+            Padding = new Thickness(8, 5, 8, 5),
+            Background = Brushes.White,
+            BorderBrush = new SolidColorBrush(Color.FromRgb(183, 194, 210))
+        };
+        output.Children.Add(_cloudApiKey);
 
         var footer = new Border
         {
@@ -224,7 +243,12 @@ public sealed class SettingsWindow : Window
             ? InsertionMode.ClipboardOnly
             : InsertionMode.Automatic;
         _store.Current.RefinementEnabled = _refinement.IsChecked == true;
+        _store.Current.RefinementProvider = (RefinementProvider)(_refinementProvider.SelectedItem ?? RefinementProvider.Ollama);
         _store.Current.OllamaModel = _ollamaModel.Text.Trim();
+        _store.Current.OpenAiBaseUrl = _cloudBaseUrl.Text.Trim();
+        _store.Current.OpenAiModel = _cloudModel.Text.Trim();
+        if (!string.IsNullOrWhiteSpace(_cloudApiKey.Password))
+            _store.Current.OpenAiApiKeyProtected = SecretProtector.Protect(_cloudApiKey.Password);
         _store.Save();
         Close();
     }
