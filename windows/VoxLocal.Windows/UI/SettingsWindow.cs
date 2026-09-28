@@ -32,6 +32,9 @@ public sealed class SettingsWindow : Window
     private readonly TextBox _cloudBaseUrl;
     private readonly ComboBox _cloudModel;
     private readonly System.Windows.Controls.PasswordBox _cloudApiKey;
+    private readonly TextBox _cloudTimeout;
+    private readonly Button _testConnection;
+    private readonly TextBlock _connectionStatus;
     private readonly ProgressBar _downloadProgress;
     private readonly TextBlock _modelStatus;
 
@@ -165,6 +168,19 @@ public sealed class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Color.FromRgb(183, 194, 210))
         };
         output.Children.Add(_cloudApiKey);
+        _cloudTimeout = AddText(output, "Таймаут облачного запроса, секунд", store.Current.RefinementTimeoutSeconds.ToString("0.#"));
+        _testConnection = CreateButton("Проверить подключение");
+        _testConnection.HorizontalAlignment = HorizontalAlignment.Left;
+        _testConnection.Margin = new Thickness(0, 10, 0, 0);
+        _testConnection.Click += TestConnection;
+        output.Children.Add(_testConnection);
+        _connectionStatus = new TextBlock
+        {
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 7, 0, 0)
+        };
+        output.Children.Add(_connectionStatus);
 
         var footer = new Border
         {
@@ -230,8 +246,77 @@ public sealed class SettingsWindow : Window
             : new SolidColorBrush(Color.FromRgb(180, 73, 58));
     }
 
+    private async void TestConnection(object sender, RoutedEventArgs args)
+    {
+        _connectionStatus.Text = "";
+        if (!TryReadCloudSettings(out var baseUrl, out var model, out var apiKey, out var timeoutSeconds))
+            return;
+
+        _testConnection.IsEnabled = false;
+        _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(91, 103, 121));
+        _connectionStatus.Text = "Проверяю подключение…";
+        try
+        {
+            var refiner = new CloudRefiner();
+            await refiner.TestConnectionAsync(
+                baseUrl, model, apiKey, _store.Current.RefinementPreset, timeoutSeconds, CancellationToken.None);
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 130, 84));
+            _connectionStatus.Text = "✓ Подключение успешно, модель ответила.";
+        }
+        catch (TaskCanceledException)
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = "Превышен таймаут подключения.";
+        }
+        catch (HttpRequestException error)
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = $"Сервер недоступен: {error.Message}";
+        }
+        catch (Exception error)
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = error.Message;
+        }
+        finally
+        {
+            _testConnection.IsEnabled = true;
+        }
+    }
+
+    private bool TryReadCloudSettings(out string baseUrl, out string model, out string apiKey, out double timeoutSeconds)
+    {
+        baseUrl = _cloudBaseUrl.Text.Trim();
+        model = _cloudModel.Text.Trim();
+        apiKey = _cloudApiKey.Password;
+        if (string.IsNullOrWhiteSpace(apiKey))
+            apiKey = SecretProtector.Unprotect(_store.Current.OpenAiApiKeyProtected) ?? "";
+
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(model) || string.IsNullOrWhiteSpace(apiKey))
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = "Заполните Base URL, модель и API-ключ.";
+            timeoutSeconds = 0;
+            return false;
+        }
+        if (!double.TryParse(_cloudTimeout.Text.Trim(), out timeoutSeconds) || timeoutSeconds is < 1 or > 300)
+        {
+            _connectionStatus.Foreground = new SolidColorBrush(Color.FromRgb(180, 73, 58));
+            _connectionStatus.Text = "Таймаут должен быть числом от 1 до 300 секунд.";
+            return false;
+        }
+        return true;
+    }
+
     private void SaveAndClose()
     {
+        if (!double.TryParse(_cloudTimeout.Text.Trim(), out var timeoutSeconds) || timeoutSeconds is < 1 or > 300)
+        {
+            MessageBox.Show("Таймаут должен быть числом от 1 до 300 секунд.", "VoxLocal",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         _store.Current.UseExactAltSpace = _exactAltSpace.IsChecked == true;
         _store.Current.HotkeyMode = (HotkeyMode)(_mode.SelectedItem ?? HotkeyMode.PressAndHold);
         _store.Current.RecognitionEngine = _engine.SelectedIndex == 1
@@ -247,6 +332,7 @@ public sealed class SettingsWindow : Window
         _store.Current.OllamaModel = _ollamaModel.Text.Trim();
         _store.Current.OpenAiBaseUrl = _cloudBaseUrl.Text.Trim();
         _store.Current.OpenAiModel = _cloudModel.Text.Trim();
+        _store.Current.RefinementTimeoutSeconds = timeoutSeconds;
         if (!string.IsNullOrWhiteSpace(_cloudApiKey.Password))
             _store.Current.OpenAiApiKeyProtected = SecretProtector.Protect(_cloudApiKey.Password);
         _store.Save();

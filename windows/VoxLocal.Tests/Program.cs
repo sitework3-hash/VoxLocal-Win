@@ -22,6 +22,8 @@ public static class Program
         Run("empty transcription policy", TestEmptyTranscriptionPolicy);
         Run("duplicate processing state guard", TestDuplicateProcessingStateGuard);
         Run("cloud model catalog", TestCloudModelCatalog);
+        Run("cloud endpoint normalization", TestCloudEndpointNormalization);
+        Run("cloud HTTP errors", TestCloudHttpErrors);
         Console.WriteLine($"[voxlocal-tests] passed {_passed} tests");
         return 0;
     }
@@ -167,6 +169,21 @@ public static class Program
         True(OpenAiCompatibleModelCatalog.Models.Contains("gpt-6-luna"));
         Equal("https://triklz27.ru/v1", new AppSettings().OpenAiBaseUrl);
         Equal(RefinementProvider.Ollama, new AppSettings().RefinementProvider);
+    }
+
+    private static void TestCloudEndpointNormalization()
+    {
+        Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1").AbsoluteUri);
+        Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1/").AbsoluteUri);
+        Equal("https://example.com/v1/chat/completions", CloudRefiner.BuildChatCompletionsUri("https://example.com/v1/chat/completions").AbsoluteUri);
+        Throws<InvalidOperationException>(() => CloudRefiner.BuildChatCompletionsUri("not-a-url"));
+    }
+
+    private static void TestCloudHttpErrors()
+    {
+        Equal("Провайдер отклонил API-ключ.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.Unauthorized));
+        Equal("Провайдер сообщает о недостатке баланса.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.PaymentRequired));
+        Equal("Провайдер не нашёл endpoint или указанную модель.", CloudRefiner.DescribeHttpError(System.Net.HttpStatusCode.NotFound));
     }
 
     private static void Equal<T>(T expected, T actual)
