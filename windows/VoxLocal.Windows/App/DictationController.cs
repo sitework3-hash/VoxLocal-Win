@@ -225,7 +225,7 @@ public sealed class DictationController : IDisposable
         {
             pipelineTimer.Stop();
             AppLog.Shared.Error($"Dictation pipeline failed: elapsedMs={pipelineTimer.ElapsedMilliseconds}, {error}");
-            Fail(error);
+            Fail(error, logError: false);
         }
         finally
         {
@@ -257,9 +257,10 @@ public sealed class DictationController : IDisposable
         _ = ResetAfterDelayAsync();
     }
 
-    private void Fail(Exception error)
+    private void Fail(Exception error, bool logError = true)
     {
-        AppLog.Shared.Error(error.ToString());
+        if (logError)
+            AppLog.Shared.Error(error.ToString());
         _recorder.Cancel();
         _hotkeys.CaptureEscape = false;
         if (_machine.CanTransition(DictationState.Error))

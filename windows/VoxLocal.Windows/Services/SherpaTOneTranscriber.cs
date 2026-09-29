@@ -69,9 +69,9 @@ public sealed class SherpaTOneTranscriber : IDisposable
         DecodeReady(recognizer, stream, cancellationToken);
         var result = recognizer.GetResult(stream);
         var text = WhisperOutputParser.NormalizeWhitespace(result.Text);
-        if (string.IsNullOrWhiteSpace(text))
-            throw new InvalidDataException("Sherpa-ONNX вернул пустой текст.");
-
+        // Silence, an accidental hotkey press, or a very short utterance can
+        // legitimately produce no CTC tokens. The controller treats this as
+        // "nothing recognized" and skips cloud refinement and insertion.
         return new WhisperTranscript(text, "ru");
     }
 

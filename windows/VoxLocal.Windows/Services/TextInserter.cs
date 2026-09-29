@@ -17,6 +17,7 @@ public enum InsertionOutcome
 public sealed class TextInserter
 {
     private static readonly TimeSpan ClipboardRestoreDelay = TimeSpan.FromSeconds(5);
+    private static readonly int[] ClipboardRetryDelaysMs = [20, 40, 80, 160, 300];
     private readonly Dispatcher _dispatcher;
 
     public TextInserter(Dispatcher dispatcher) => _dispatcher = dispatcher;
@@ -56,25 +57,25 @@ public sealed class TextInserter
             cancellationToken.ThrowIfCancellationRequested();
             if (IsFocusedPasswordField())
             {
-                Clipboard.SetText(text);
+                await SetClipboardTextWithRetryAsync(text, cancellationToken);
                 return InsertionOutcome.SecureField;
             }
 
             if (mode == InsertionMode.ClipboardOnly || targetWindow == 0)
             {
-                Clipboard.SetText(text);
+                await SetClipboardTextWithRetryAsync(text, cancellationToken);
                 return InsertionOutcome.ClipboardOnly;
             }
 
             if (!IsWindowValid(targetWindow))
             {
                 AppLog.Shared.Info("Paste skipped: captured target window is no longer valid");
-                Clipboard.SetText(text);
+                await SetClipboardTextWithRetryAsync(text, cancellationToken);
                 return InsertionOutcome.ClipboardOnly;
             }
 
-            var snapshot = SnapshotClipboard();
-            Clipboard.SetText(text);
+            var snapshot = await SnapshotClipboardWithRetryAsync(cancellationToken);
+            await SetClipboardTextWithRetryAsync(text, cancellationToken);
             var clipboardSequence = GetClipboardSequenceNumber();
 
             if (GetForegroundWindow() != targetWindow)
@@ -127,7 +128,7 @@ public sealed class TextInserter
     private async Task RestoreClipboardAfterDelayAsync(ClipboardSnapshot snapshot, uint clipboardSequence)
     {
         await Task.Delay(ClipboardRestoreDelay);
-        await _dispatcher.InvokeAsync(() =>
+        await _dispatcher.InvokeAsync(async () =>
         {
             // Do not overwrite anything copied by the user after dictation.
             if (GetClipboardSequenceNumber() != clipboardSequence)
@@ -142,9 +143,11 @@ public sealed class TextInserter
                 return;
             }
 
-            RestoreClipboard(snapshot.Data);
-            AppLog.Shared.Info("Previous clipboard restored after 5 seconds");
-        });
+            if (await RestoreClipboardWithRetryAsync(snapshot.Data))
+                AppLog.Shared.Info("Previous clipboard restored after 5 seconds");
+            else
+                AppLog.Shared.Info("Previous clipboard restoration failed because the clipboard remained busy");
+        }).Task.Unwrap();
     }
 
     private static bool IsFocusedPasswordField()
@@ -161,49 +164,92 @@ public sealed class TextInserter
         }
     }
 
-    private static ClipboardSnapshot SnapshotClipboard()
+    private static async Task<ClipboardSnapshot> SnapshotClipboardWithRetryAsync(
+        CancellationToken cancellationToken)
     {
-        var snapshot = new Dictionary<string, object>();
-        try
+        for (var attempt = 0; attempt <= ClipboardRetryDelaysMs.Length; attempt++)
         {
-            var data = Clipboard.GetDataObject();
-            if (data is not null)
+            try
             {
-                foreach (var format in data.GetFormats(false))
+                var snapshot = new Dictionary<string, object>();
+                var data = Clipboard.GetDataObject();
+                if (data is not null)
                 {
-                    try
+                    foreach (var format in data.GetFormats(false))
                     {
-                        var value = data.GetData(format, false);
-                        if (value is not null)
-                            snapshot[format] = value;
+                        try
+                        {
+                            var value = data.GetData(format, false);
+                            if (value is not null)
+                                snapshot[format] = value;
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
+                return new ClipboardSnapshot(snapshot, true);
             }
-            return new ClipboardSnapshot(snapshot, true);
+            catch (COMException) when (attempt < ClipboardRetryDelaysMs.Length)
+            {
+                await Task.Delay(ClipboardRetryDelaysMs[attempt], cancellationToken);
+            }
+            catch
+            {
+                break;
+            }
         }
-        catch
+
+        return new ClipboardSnapshot(new Dictionary<string, object>(), false);
+    }
+
+    private static async Task SetClipboardTextWithRetryAsync(
+        string text,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
         {
-            return new ClipboardSnapshot(snapshot, false);
+            try
+            {
+                Clipboard.SetText(text);
+                return;
+            }
+            catch (COMException) when (attempt < ClipboardRetryDelaysMs.Length)
+            {
+                AppLog.Shared.Info($"Clipboard busy; retrying text write (attempt {attempt + 2}/{ClipboardRetryDelaysMs.Length + 1})");
+                await Task.Delay(ClipboardRetryDelaysMs[attempt], cancellationToken);
+            }
         }
     }
 
-    private static void RestoreClipboard(Dictionary<string, object> snapshot)
+    private static async Task<bool> RestoreClipboardWithRetryAsync(Dictionary<string, object> snapshot)
     {
-        try
+        for (var attempt = 0; attempt <= ClipboardRetryDelaysMs.Length; attempt++)
         {
-            if (snapshot.Count == 0)
+            try
             {
-                Clipboard.Clear();
-                return;
+                if (snapshot.Count == 0)
+                {
+                    Clipboard.Clear();
+                }
+                else
+                {
+                    var data = new DataObject();
+                    foreach (var (format, value) in snapshot)
+                        data.SetData(format, value);
+                    Clipboard.SetDataObject(data, true);
+                }
+                return true;
             }
-
-            var data = new DataObject();
-            foreach (var (format, value) in snapshot)
-                data.SetData(format, value);
-            Clipboard.SetDataObject(data, true);
+            catch (COMException) when (attempt < ClipboardRetryDelaysMs.Length)
+            {
+                await Task.Delay(ClipboardRetryDelaysMs[attempt]);
+            }
+            catch
+            {
+                return false;
+            }
         }
-        catch { }
+
+        return false;
     }
 
     private static bool UsesUnicodeTyping(nint window) =>
