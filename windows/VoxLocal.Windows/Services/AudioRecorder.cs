@@ -16,6 +16,7 @@ public sealed class AudioRecorder : IDisposable
 
     public bool IsRecording { get; private set; }
     public event Action<float>? LevelChanged;
+    public event Action<byte[], int>? Pcm16DataAvailable;
 
     public void Start(int deviceNumber = -1)
     {
@@ -72,6 +73,15 @@ public sealed class AudioRecorder : IDisposable
                 bufferPeak = Math.Max(bufferPeak, Math.Abs(sample / 32768f));
             }
             _peak = Math.Max(_peak, bufferPeak);
+        }
+
+        // Subscribers must copy or convert the bytes before this synchronous
+        // callback returns because NAudio reuses its capture buffers.
+        try { Pcm16DataAvailable?.Invoke(args.Buffer, args.BytesRecorded); }
+        catch (Exception error)
+        {
+            // A preview failure must never interrupt microphone capture.
+            AppLog.Shared.Info($"Live transcription audio delivery skipped: {error.Message}");
         }
         LevelChanged?.Invoke(Math.Clamp(bufferPeak, 0, 1));
     }

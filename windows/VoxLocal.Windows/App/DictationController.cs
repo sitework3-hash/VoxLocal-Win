@@ -17,12 +17,15 @@ public sealed class DictationController : IDisposable
     private readonly TextInserter _inserter;
     private readonly GlobalHotkeyService _hotkeys;
     private CancellationTokenSource? _pipelineCancellation;
+    private SherpaTOneTranscriber.LiveSession? _liveTranscription;
     private nint _targetWindow;
 
     public DictationState State => _machine.State;
     public string StatusMessage { get; private set; } = "Готово";
     public event Action<DictationState, string>? StateChanged;
     public event Action<float>? LevelChanged;
+    public event Action<bool>? PreviewAvailabilityChanged;
+    public event Action<string>? PreviewChanged;
 
     public DictationController(
         SettingsStore settings,
@@ -97,6 +100,18 @@ public sealed class DictationController : IDisposable
             AppLog.Shared.Info($"Target window captured: handle=0x{_targetWindow.ToInt64():X}, " +
                                TextInserter.DescribeCapturedWindow(_targetWindow));
             _pipelineCancellation = new CancellationTokenSource();
+            var livePreviewAvailable = _settings.Current.RecognitionEngine == RecognitionEngine.SherpaTOneRussian;
+            PreviewAvailabilityChanged?.Invoke(livePreviewAvailable);
+            PreviewChanged?.Invoke("");
+            if (livePreviewAvailable)
+            {
+                _liveTranscription = _sherpa.StartLiveSession(
+                    _settings.Current.SherpaThreads,
+                    text => PreviewChanged?.Invoke(text),
+                    _pipelineCancellation.Token);
+                _recorder.Pcm16DataAvailable += _liveTranscription.AcceptPcm16;
+                AppLog.Shared.Info("Live transcription started");
+            }
             _recorder.Start();
             AppLog.Shared.Info("Audio recording started");
             _hotkeys.CaptureEscape = true;
@@ -131,15 +146,13 @@ public sealed class DictationController : IDisposable
                                $"fileBytes={new FileInfo(recording.FilePath).Length}");
             cancellationToken.ThrowIfCancellationRequested();
 
-            Transition(DictationState.Transcribing, "Распознаю…");
+            Transition(DictationState.Transcribing, "Завершаю распознавание…");
             var transcriptionTimer = Stopwatch.StartNew();
             WhisperTranscript transcript;
-            if (_settings.Current.RecognitionEngine == RecognitionEngine.SherpaTOneRussian)
+            if (_liveTranscription is not null)
             {
-                transcript = await _sherpa.TranscribeAsync(
-                    recording.FilePath,
-                    _settings.Current.SherpaThreads,
-                    cancellationToken);
+                _recorder.Pcm16DataAvailable -= _liveTranscription.AcceptPcm16;
+                transcript = await _liveTranscription.CompleteAsync();
             }
             else
             {
@@ -230,6 +243,7 @@ public sealed class DictationController : IDisposable
         finally
         {
             _hotkeys.CaptureEscape = false;
+            StopLiveTranscription(cancel: false);
             if (audioPath is not null)
             {
                 try
@@ -250,6 +264,7 @@ public sealed class DictationController : IDisposable
         if (!_machine.IsCancellable)
             return;
         _pipelineCancellation?.Cancel();
+        StopLiveTranscription(cancel: true);
         _recorder.Cancel();
         _hotkeys.CaptureEscape = false;
         if (State != DictationState.Cancelled && _machine.CanTransition(DictationState.Cancelled))
@@ -261,11 +276,25 @@ public sealed class DictationController : IDisposable
     {
         if (logError)
             AppLog.Shared.Error(error.ToString());
+        StopLiveTranscription(cancel: true);
         _recorder.Cancel();
         _hotkeys.CaptureEscape = false;
         if (_machine.CanTransition(DictationState.Error))
             Transition(DictationState.Error, error.Message);
         _ = ResetAfterDelayAsync();
+    }
+
+    private void StopLiveTranscription(bool cancel)
+    {
+        var session = _liveTranscription;
+        if (session is null)
+            return;
+
+        _recorder.Pcm16DataAvailable -= session.AcceptPcm16;
+        if (cancel)
+            session.Cancel();
+        session.Dispose();
+        _liveTranscription = null;
     }
 
     private async Task ResetAfterDelayAsync()
@@ -286,6 +315,7 @@ public sealed class DictationController : IDisposable
     public void Dispose()
     {
         _pipelineCancellation?.Cancel();
+        StopLiveTranscription(cancel: true);
         _pipelineCancellation?.Dispose();
         _recorder.Dispose();
     }

@@ -14,6 +14,7 @@ public static class Program
         Run("Whisper argument contract", TestWhisperArguments);
         Run("Whisper JSON parsing", TestWhisperJsonParsing);
         Run("Sherpa Russian model integration", TestSherpaRussianModel);
+        Run("Sherpa live transcription", TestSherpaLiveTranscription);
         Run("artifact removal", TestArtifactRemoval);
         Run("refinement safeguard", TestRefinementSafeguard);
         Run("refinement modes", TestRefinementModes);
@@ -91,6 +92,42 @@ public static class Program
             .GetAwaiter().GetResult();
         True(transcript.Text.Contains("бригада", StringComparison.OrdinalIgnoreCase));
         Equal("ru", transcript.DetectedLanguage);
+    }
+
+    private static void TestSherpaLiveTranscription()
+    {
+        if (!SherpaTOneTranscriber.IsInstalled())
+            return;
+
+        var sample = System.IO.Path.Combine(AppPaths.SherpaTOneDirectory, "0.wav");
+        using var reader = new NAudio.Wave.WaveFileReader(sample);
+        Equal(16, reader.WaveFormat.BitsPerSample);
+        Equal(1, reader.WaveFormat.Channels);
+        var previews = new List<string>();
+        using var transcriber = new SherpaTOneTranscriber();
+        using var session = transcriber.StartLiveSession(
+            1, text => previews.Add(text), System.Threading.CancellationToken.None);
+        var source = NAudio.Wave.WaveExtensionMethods.ToSampleProvider(reader);
+        var resampled = reader.WaveFormat.SampleRate == 16_000
+            ? source
+            : new NAudio.Wave.SampleProviders.WdlResamplingSampleProvider(source, 16_000);
+        var samples = new float[1600];
+        int read;
+        while ((read = resampled.Read(samples, 0, samples.Length)) > 0)
+        {
+            var pcm = new byte[read * 2];
+            for (var index = 0; index < read; index++)
+            {
+                var value = (short)Math.Clamp(samples[index] * 32768f, short.MinValue, short.MaxValue);
+                BitConverter.TryWriteBytes(pcm.AsSpan(index * 2, 2), value);
+            }
+            session.AcceptPcm16(pcm, pcm.Length);
+        }
+
+        var transcript = session.CompleteAsync().GetAwaiter().GetResult();
+        True(transcript.Text.Contains("бригада", StringComparison.OrdinalIgnoreCase));
+        True(previews.Count > 0);
+        Equal(transcript.Text, previews[^1]);
     }
 
     private static void TestArtifactRemoval()

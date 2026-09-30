@@ -53,6 +53,10 @@ public static class Program
             () => overlay.SetState(state, message));
         dictation.LevelChanged += level => application.Dispatcher.BeginInvoke(
             () => overlay.SetLevel(level));
+        dictation.PreviewAvailabilityChanged += available => application.Dispatcher.BeginInvoke(
+            () => overlay.SetPreviewAvailable(available));
+        dictation.PreviewChanged += text => application.Dispatcher.BeginInvoke(
+            () => overlay.SetPreview(text));
         application.Exit += (_, _) =>
         {
             overlay.Close();

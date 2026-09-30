@@ -14,12 +14,14 @@ public sealed class OverlayWindow : Window
     private const int WsExNoActivate = 0x08000000;
     private const int WsExToolWindow = 0x00000080;
     private readonly TextBlock _status;
+    private readonly TextBox _preview;
     private readonly ProgressBar _level;
+    private bool _previewAvailable;
 
     public OverlayWindow()
     {
-        Width = 320;
-        Height = 82;
+        Width = 520;
+        Height = 150;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -45,6 +47,22 @@ public sealed class OverlayWindow : Window
             FontSize = 15,
             HorizontalAlignment = HorizontalAlignment.Center
         };
+        _preview = new TextBox
+        {
+            IsReadOnly = true,
+            IsHitTestVisible = false,
+            TextWrapping = TextWrapping.Wrap,
+            AcceptsReturn = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Foreground = Brushes.White,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 14,
+            MaxHeight = 62,
+            Margin = new Thickness(0, 8, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
         _level = new ProgressBar
         {
             Minimum = 0,
@@ -56,6 +74,7 @@ public sealed class OverlayWindow : Window
             BorderThickness = new Thickness(0)
         };
         panel.Children.Add(_status);
+        panel.Children.Add(_preview);
         panel.Children.Add(_level);
         border.Child = panel;
         Content = border;
@@ -69,7 +88,11 @@ public sealed class OverlayWindow : Window
 
     public void SetState(DictationState state, string message)
     {
+        Height = state == DictationState.Recording && _previewAvailable ? 150 : 82;
         _status.Text = state == DictationState.Recording ? $"●  {message}   Esc — отмена" : message;
+        _preview.Visibility = state == DictationState.Recording && _previewAvailable
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         _level.Visibility = state == DictationState.Recording
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -84,6 +107,15 @@ public sealed class OverlayWindow : Window
     }
 
     public void SetLevel(float level) => _level.Value = Math.Clamp(level * 2.5, 0, 1);
+
+    public void SetPreviewAvailable(bool available) => _previewAvailable = available;
+
+    public void SetPreview(string text)
+    {
+        _preview.Text = text;
+        _preview.CaretIndex = _preview.Text.Length;
+        _preview.ScrollToEnd();
+    }
 
     private void Position()
     {
