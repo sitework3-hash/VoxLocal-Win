@@ -100,10 +100,11 @@ public final class SettingsStore: ObservableObject {
         refinementProvider = RefinementProviderKind(
             rawValue: defaults.string(forKey: Key.refinementProvider) ?? "") ?? .openAICompatible
         openAIBaseURL = defaults.string(forKey: Key.openAIBaseURL) ?? Self.defaultOpenAIBaseURL
-        openAIModel = defaults.string(forKey: Key.openAIModel) ?? Self.defaultOpenAIModel
+        let storedOpenAIModel = defaults.string(forKey: Key.openAIModel) ?? Self.defaultOpenAIModel
+        openAIModel = storedOpenAIModel
         openAIModelProfile = OpenAIModelProfile(
             rawValue: defaults.string(forKey: Key.openAIModelProfile) ?? "")
-            ?? OpenAIModelProfile.resolve(modelID: openAIModel)
+            ?? OpenAIModelProfile.resolve(modelID: storedOpenAIModel)
         ollamaEndpoint = defaults.string(forKey: Key.ollamaEndpoint) ?? Self.defaultOllamaEndpoint
         ollamaModel = defaults.string(forKey: Key.ollamaModel) ?? ""
         refinementPreset = RefinementPreset(rawValue: defaults.string(forKey: Key.refinementPreset) ?? "") ?? .cleanDictation
