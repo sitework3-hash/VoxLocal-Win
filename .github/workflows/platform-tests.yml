@@ -1,0 +1,43 @@
+name: Platform tests
+
+on:
+  push:
+    branches: [main, windows-port, feature/macos]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows tests
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore project-local dependencies
+        shell: powershell
+        run: .\scripts\windows\bootstrap.ps1
+      - name: Run Windows tests
+        shell: powershell
+        run: .\scripts\windows\test.ps1
+
+  macos:
+    name: macOS tests and app build
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap whisper.cpp with Metal
+        run: ./scripts/bootstrap.sh
+      - name: Run macOS tests
+        run: ./scripts/test.sh
+      - name: Build app bundle
+        run: ./scripts/build_app.sh
+      - name: Verify app signature
+        run: codesign --verify --deep --strict dist/VoxLocal.app
+      - name: Upload unsigned-development app
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxLocal-macOS-development
+          path: dist/VoxLocal.app
+          if-no-files-found: error
