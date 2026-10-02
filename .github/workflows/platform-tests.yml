@@ -30,7 +30,20 @@ jobs:
       - name: Bootstrap whisper.cpp with Metal
         run: ./scripts/bootstrap.sh
       - name: Run macOS tests
-        run: ./scripts/test.sh
+        shell: bash
+        run: |
+          set +e
+          ./scripts/test.sh 2>&1 | tee macos-test.log
+          status=${PIPESTATUS[0]}
+          if [[ $status -ne 0 ]]; then
+            grep -E '(^|: )(error:|fatal error:|failed:|XCTAssert)' macos-test.log | tail -40 | while IFS= read -r line; do
+              safe=${line//'%'/'%25'}
+              safe=${safe//$'\r'/'%0D'}
+              safe=${safe//$'\n'/'%0A'}
+              echo "::error::$safe"
+            done
+          fi
+          exit "$status"
       - name: Build app bundle
         run: ./scripts/build_app.sh
       - name: Verify app signature
