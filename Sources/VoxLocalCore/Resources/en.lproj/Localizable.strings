@@ -69,7 +69,14 @@
 "settings.tab.general" = "General";
 "settings.tab.transcription" = "Transcription";
 "settings.tab.refinement" = "Refinement";
+"settings.tab.history" = "History";
 "settings.tab.privacy" = "Privacy";
+
+"history.empty.title" = "History is empty";
+"history.empty.message" = "The five most recent successful dictations will appear here.";
+"history.copy" = "Copy";
+"history.clear" = "Clear history";
+"history.privacy" = "History is stored only on this Mac.";
 
 "settings.hotkey.section" = "Global keyboard shortcut";
 "settings.hotkey" = "Shortcut";

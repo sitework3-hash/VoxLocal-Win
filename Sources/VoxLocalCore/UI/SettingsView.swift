@@ -9,6 +9,7 @@ public final class SettingsDependencies: ObservableObject {
     public let modelManager: ModelManager
     public let permissions: PermissionsChecking
     public let dictation: DictationController
+    public let history: TranscriptionHistoryStore
     /// Re-registers the global hotkey; returns a localized error, nil on success.
     public let applyHotkey: (KeyCombo) -> String?
 
@@ -17,12 +18,14 @@ public final class SettingsDependencies: ObservableObject {
         modelManager: ModelManager,
         permissions: PermissionsChecking,
         dictation: DictationController,
+        history: TranscriptionHistoryStore,
         applyHotkey: @escaping (KeyCombo) -> String?
     ) {
         self.settings = settings
         self.modelManager = modelManager
         self.permissions = permissions
         self.dictation = dictation
+        self.history = history
         self.applyHotkey = applyHotkey
     }
 }
@@ -44,6 +47,8 @@ public struct SettingsView: View {
                 .tabItem { Label(L10n.t("settings.tab.transcription"), systemImage: "waveform") }
             RefinementSettingsTab(settings: settings)
                 .tabItem { Label(L10n.t("settings.tab.refinement"), systemImage: "wand.and.stars") }
+            HistorySettingsTab(history: deps.history)
+                .tabItem { Label(L10n.t("settings.tab.history"), systemImage: "clock.arrow.circlepath") }
             PrivacySettingsTab(settings: settings)
                 .tabItem { Label(L10n.t("settings.tab.privacy"), systemImage: "lock.shield") }
         }
@@ -391,6 +396,56 @@ struct RefinementSettingsTab: View {
             } catch {
                 availability = L10n.t("settings.refine.status.unreachable", error.localizedDescription)
             }
+        }
+    }
+}
+
+// MARK: - History
+
+struct HistorySettingsTab: View {
+    @ObservedObject var history: TranscriptionHistoryStore
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if history.entries.isEmpty {
+                ContentUnavailableView(
+                    L10n.t("history.empty.title"),
+                    systemImage: "text.bubble",
+                    description: Text(L10n.t("history.empty.message")))
+            } else {
+                List(history.entries) { entry in
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack {
+                            Text(entry.createdAt, format: .dateTime.day().month().hour().minute())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(L10n.t("history.copy")) {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(entry.text, forType: .string)
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        Text(entry.text)
+                            .lineLimit(4)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.vertical, 5)
+                }
+            }
+
+            Divider()
+            HStack {
+                Text(L10n.t("history.privacy"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(L10n.t("history.clear"), role: .destructive) {
+                    history.clear()
+                }
+                .disabled(history.entries.isEmpty)
+            }
+            .padding()
         }
     }
 }

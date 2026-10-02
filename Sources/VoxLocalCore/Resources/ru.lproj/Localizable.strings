@@ -69,7 +69,14 @@
 "settings.tab.general" = "Основные";
 "settings.tab.transcription" = "Распознавание";
 "settings.tab.refinement" = "Улучшение";
+"settings.tab.history" = "История";
 "settings.tab.privacy" = "Конфиденциальность";
+
+"history.empty.title" = "История пока пуста";
+"history.empty.message" = "Здесь появятся пять последних успешных диктовок.";
+"history.copy" = "Копировать";
+"history.clear" = "Очистить историю";
+"history.privacy" = "История хранится только на этом Mac.";
 
 "settings.hotkey.section" = "Глобальное сочетание клавиш";
 "settings.hotkey" = "Сочетание";

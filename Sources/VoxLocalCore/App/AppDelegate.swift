@@ -9,6 +9,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissions: PermissionsService!
     private var modelManager: ModelManager!
     private var hotkeys: HotkeyManager!
+    private var history: TranscriptionHistoryStore!
     private var dictation: DictationController!
     private var overlay: OverlayWindowController!
     private var statusItem: StatusItemController!
@@ -30,6 +31,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         permissions = PermissionsService()
         modelManager = ModelManager()
         hotkeys = HotkeyManager()
+        history = TranscriptionHistoryStore()
 
         dictation = DictationController(
             settings: settings,
@@ -38,7 +40,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             transcriber: WhisperTranscriber(),
             modelManager: modelManager,
             inserter: TextInserter(),
-            hotkeys: hotkeys)
+            hotkeys: hotkeys,
+            history: history)
 
         overlay = OverlayWindowController(dictation: dictation)
 
@@ -47,6 +50,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             modelManager: modelManager,
             permissions: permissions,
             dictation: dictation,
+            history: history,
             applyHotkey: { [weak self] combo in
                 self?.registerHotkey(combo)
             })

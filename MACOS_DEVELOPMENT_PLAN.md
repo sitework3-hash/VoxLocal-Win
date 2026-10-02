@@ -36,7 +36,7 @@ restructure the stable Windows application.
 
 ### Stage 2 — functional parity
 
-- [ ] Persistent history of the five newest successful transcripts.
+- [x] Persistent history of the five newest successful transcripts.
 - [ ] Live partial transcription in the recording overlay.
 - [ ] OpenAI-compatible/Polza.ai refinement provider.
 - [ ] Gemini Flash and DeepSeek Chat profiles.

@@ -30,6 +30,7 @@ public final class DictationController: ObservableObject {
     private let modelManager: ModelManager
     private let inserter: TextInserter
     private let hotkeys: HotkeyManager
+    private let history: TranscriptionHistoryStore
 
     private var targetApp: NSRunningApplication?
     private var pipelineTask: Task<Void, Never>?
@@ -43,7 +44,8 @@ public final class DictationController: ObservableObject {
         transcriber: WhisperTranscriber,
         modelManager: ModelManager,
         inserter: TextInserter,
-        hotkeys: HotkeyManager
+        hotkeys: HotkeyManager,
+        history: TranscriptionHistoryStore
     ) {
         self.settings = settings
         self.permissions = permissions
@@ -52,6 +54,7 @@ public final class DictationController: ObservableObject {
         self.modelManager = modelManager
         self.inserter = inserter
         self.hotkeys = hotkeys
+        self.history = history
 
         recorder.levelHandler = { [weak self] level in
             self?.micLevel = level
@@ -231,6 +234,7 @@ public final class DictationController: ObservableObject {
                 }
 
                 guard self.machine.state == .transcribing || self.machine.state == .refining else { return }
+                self.history.add(finalText)
                 self.advance(to: .inserting)
 
                 if let sink = self.testModeSink {
