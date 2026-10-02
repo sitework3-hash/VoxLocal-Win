@@ -90,6 +90,17 @@ git pull
 ./install-macos.sh
 ```
 
+## Передача проекта AI-агенту
+
+В корне репозитория находятся [AGENTS.md](AGENTS.md) и [MACOS_HANDOFF.md](MACOS_HANDOFF.md). Это основной контекст для нового coding-агента: в них описаны архитектура, команды, ветки, безопасность, расположение данных, CI, известные ограничения и следующий план работы. Эти же файлы добавляются в DMG рядом с приложением.
+
+Чтобы агент мог продолжить разработку, ему нужен Git-клон, а не только установленный `.app`:
+
+```bash
+git clone --branch feature/macos https://github.com/sitework3-hash/VoxLocal-Win.git
+cd VoxLocal-Win
+```
+
 ## Разработка
 
 ```bash

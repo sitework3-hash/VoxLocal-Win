@@ -19,7 +19,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.hotkeyKeyCode, 49) // Space
         XCTAssertEqual(store.hotkeyModifiers, 0x0800) // Option
         XCTAssertEqual(store.hotkeyMode, .pressAndHold)
-        XCTAssertEqual(store.whisperModel, "base")
+        XCTAssertEqual(store.whisperModel, "small")
         XCTAssertEqual(store.spokenLanguage, .auto)
         XCTAssertFalse(store.refinementEnabled)
         XCTAssertEqual(store.refinementProvider, .openAICompatible)

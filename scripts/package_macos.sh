@@ -18,6 +18,9 @@ rm -rf "$STAGING" "$DMG"
 mkdir -p "$STAGING"
 ditto "$APP_BUNDLE" "$STAGING/VoxLocal.app"
 ln -s /Applications "$STAGING/Applications"
+cp "$REPO_ROOT/AGENTS.md" "$STAGING/AGENTS.md"
+cp "$REPO_ROOT/MACOS_HANDOFF.md" "$STAGING/MACOS_HANDOFF.md"
+cp "$REPO_ROOT/README_MACOS.md" "$STAGING/README_MACOS.md"
 cat > "$STAGING/README.txt" <<'EOF'
 VoxLocal for macOS
 
@@ -29,6 +32,10 @@ VoxLocal for macOS
 This development build uses an ad-hoc signature. A future public release can
 use Apple Developer ID signing and notarization without changing application
 data or settings.
+
+For a coding agent or maintainer, AGENTS.md and MACOS_HANDOFF.md describe the
+project. Clone the repository's feature/macos branch before changing source;
+the installed app itself does not contain a writable Git checkout.
 EOF
 
 log "Creating $(basename "$DMG")..."

@@ -91,7 +91,7 @@ public final class SettingsStore: ObservableObject {
         hotkeyModifiers = UInt32(defaults.object(forKey: Key.hotkeyModifiers) as? Int ?? Int(Self.defaultHotkeyModifiers))
         hotkeyMode = HotkeyMode(rawValue: defaults.string(forKey: Key.hotkeyMode) ?? "") ?? .pressAndHold
         inputDeviceUID = defaults.string(forKey: Key.inputDeviceUID)
-        whisperModel = defaults.string(forKey: Key.whisperModel) ?? "base"
+        whisperModel = defaults.string(forKey: Key.whisperModel) ?? "small"
         spokenLanguage = SpokenLanguage(rawValue: defaults.string(forKey: Key.spokenLanguage) ?? "") ?? .auto
         whisperThreads = defaults.object(forKey: Key.whisperThreads) as? Int
             ?? min(8, max(2, ProcessInfo.processInfo.activeProcessorCount / 2))
