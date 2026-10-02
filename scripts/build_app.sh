@@ -63,6 +63,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
     <string>NSApplication</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>VoxLocal записывает вашу речь для локального распознавания. Звук не покидает этот Mac. / VoxLocal records your speech for on-device transcription. Audio never leaves this Mac.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>VoxLocal использует встроенное распознавание macOS только для локального предварительного текста во время записи. / VoxLocal uses macOS on-device speech recognition only for live preview while recording.</string>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 VoxLocal contributors. MIT License.</string>
 </dict>
@@ -73,9 +75,11 @@ PLIST
 mkdir -p "$APP_BUNDLE/Contents/Resources/ru.lproj" "$APP_BUNDLE/Contents/Resources/en.lproj"
 cat > "$APP_BUNDLE/Contents/Resources/ru.lproj/InfoPlist.strings" <<'EOF'
 "NSMicrophoneUsageDescription" = "VoxLocal записывает вашу речь для локального распознавания. Звук не покидает этот Mac.";
+"NSSpeechRecognitionUsageDescription" = "VoxLocal использует встроенное распознавание macOS только для локального предварительного текста во время записи.";
 EOF
 cat > "$APP_BUNDLE/Contents/Resources/en.lproj/InfoPlist.strings" <<'EOF'
 "NSMicrophoneUsageDescription" = "VoxLocal records your speech for on-device transcription. Audio never leaves this Mac.";
+"NSSpeechRecognitionUsageDescription" = "VoxLocal uses macOS on-device speech recognition only for live preview while recording.";
 EOF
 
 log "Ad-hoc signing…"

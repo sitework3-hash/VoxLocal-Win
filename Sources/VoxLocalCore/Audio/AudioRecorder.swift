@@ -17,6 +17,10 @@ public final class AudioRecorder {
     public var levelHandler: ((Float) -> Void)?
     /// Called when the input device disappears mid-recording.
     public var deviceInterruptionHandler: (() -> Void)?
+    /// Receives native microphone buffers for best-effort live preview. The
+    /// recorder remains authoritative and continues writing the WAV regardless
+    /// of preview availability or errors.
+    public var previewBufferHandler: ((AVAudioPCMBuffer) -> Void)?
 
     private let engine = AVAudioEngine()
     // `lock` guards converter/writer/peak: process(buffer:) runs on the
@@ -96,6 +100,8 @@ public final class AudioRecorder {
         guard let converter, let writer else { return }
 
         // Level metering on the raw input buffer.
+        previewBufferHandler?(buffer)
+
         if let ch = buffer.floatChannelData?[0] {
             let n = Int(buffer.frameLength)
             var sum: Float = 0

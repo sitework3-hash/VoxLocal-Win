@@ -14,6 +14,9 @@ public final class DictationController: ObservableObject {
     /// clipboard fallback explanations).
     @Published public private(set) var statusMessage: String = ""
     @Published public private(set) var micLevel: Float = 0
+    /// Best-effort on-device preview. Whisper still produces the final text.
+    @Published public private(set) var livePreviewText: String = ""
+    @Published public private(set) var livePreviewAvailable = false
 
     /// When set, the pipeline delivers the final text here instead of
     /// inserting into another app (used by the onboarding test dictation).
@@ -32,6 +35,7 @@ public final class DictationController: ObservableObject {
     private let hotkeys: HotkeyManager
     private let history: TranscriptionHistoryStore
     private let secretStore: SecretStoring
+    private let livePreview: LiveSpeechPreview
 
     private var targetApp: NSRunningApplication?
     private var pipelineTask: Task<Void, Never>?
@@ -47,7 +51,8 @@ public final class DictationController: ObservableObject {
         inserter: TextInserter,
         hotkeys: HotkeyManager,
         history: TranscriptionHistoryStore,
-        secretStore: SecretStoring = KeychainSecretStore.shared
+        secretStore: SecretStoring = KeychainSecretStore.shared,
+        livePreview: LiveSpeechPreview = LiveSpeechPreview()
     ) {
         self.settings = settings
         self.permissions = permissions
@@ -58,14 +63,19 @@ public final class DictationController: ObservableObject {
         self.hotkeys = hotkeys
         self.history = history
         self.secretStore = secretStore
+        self.livePreview = livePreview
 
         recorder.levelHandler = { [weak self] level in
             self?.micLevel = level
         }
         recorder.deviceInterruptionHandler = { [weak self] in
             guard let self, self.state == .recording else { return }
+            self.livePreview.stop(cancel: true)
             self.recorder.cancel()
             self.fail(.microphoneUnavailable)
+        }
+        recorder.previewBufferHandler = { [weak livePreview] buffer in
+            livePreview?.append(buffer)
         }
     }
 
@@ -111,6 +121,8 @@ public final class DictationController: ObservableObject {
         idleResetTask?.cancel()
         stopRequestedWhilePreparing = false
         statusMessage = ""
+        livePreviewText = ""
+        livePreviewAvailable = false
         targetApp = NSWorkspace.shared.frontmostApplication
         advance(to: .preparing)
 
@@ -159,6 +171,15 @@ public final class DictationController: ObservableObject {
             }
         }
 
+        livePreviewAvailable = await livePreview.start(
+            language: settings.spokenLanguage.whisperCode
+        ) { [weak self] text in
+            Task { @MainActor in
+                guard let self, self.state == .recording else { return }
+                self.livePreviewText = text
+            }
+        }
+
         do {
             try recorder.start(deviceUID: settings.inputDeviceUID)
         } catch let error as VoxLocalError {
@@ -181,6 +202,7 @@ public final class DictationController: ObservableObject {
     public func stopAndProcess() {
         guard machine.state == .recording else { return }
         advance(to: .stopping)
+        livePreview.stop(cancel: false)
 
         let recording: RecordingResult
         do {
@@ -299,9 +321,12 @@ public final class DictationController: ObservableObject {
         guard machine.isCancellable else { return }
         pipelineTask?.cancel()
         pipelineTask = nil
+        livePreview.stop(cancel: true)
         if recorder.isRecording {
             recorder.cancel()
         }
+        livePreviewText = ""
+        livePreviewAvailable = false
         micLevel = 0
         advance(to: .cancelled)
         statusMessage = ""

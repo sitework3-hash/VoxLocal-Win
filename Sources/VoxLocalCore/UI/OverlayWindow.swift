@@ -89,7 +89,12 @@ struct OverlayView: View {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                if dictation.state == .recording {
+                if dictation.state == .recording && dictation.livePreviewAvailable && !dictation.livePreviewText.isEmpty {
+                    Text(dictation.livePreviewText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                } else if dictation.state == .recording {
                     LevelMeter(level: dictation.micLevel, animate: !reduceMotion)
                         .frame(height: 10)
                         .accessibilityLabel(L10n.t("overlay.level.ax"))
