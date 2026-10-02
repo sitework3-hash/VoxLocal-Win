@@ -16,6 +16,12 @@ Intel Mac поддерживается существующим кодом, но
 
 ## Установка из GitHub
 
+### Готовый DMG
+
+После первого тестового выпуска файл `VoxLocal-macOS-arm64-*.dmg` будет доступен в [GitHub Releases](https://github.com/sitework3-hash/VoxLocal-Win/releases). Откройте DMG и перетащите VoxLocal в Applications. До появления Apple Developer ID сборка использует локальную подпись, поэтому первый запуск выполняется правым щелчком → **Open**.
+
+### Сборка непосредственно из Git
+
 Откройте Terminal:
 
 ```bash
@@ -94,7 +100,11 @@ git pull
 ./scripts/run.sh
 ```
 
-Собранное приложение находится в `dist/VoxLocal.app`.
+Собранное приложение находится в `dist/VoxLocal.app`. Для создания проверяемого DMG:
+
+```bash
+./scripts/package_macos.sh
+```
 
 ## Текущее различие с Windows
 

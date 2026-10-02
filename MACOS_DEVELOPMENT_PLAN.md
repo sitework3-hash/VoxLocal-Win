@@ -48,7 +48,7 @@ restructure the stable Windows application.
 
 - [ ] Benchmark `base`, `small`, and `large-v3-turbo` on Apple Silicon.
 - [ ] Tune threads/context without reducing long-recording accuracy.
-- [ ] Add signed ZIP/DMG release workflow.
+- [x] Add ad-hoc signed DMG release workflow.
 - [ ] Add Developer ID signing and Apple notarization when credentials exist.
 - [ ] Manual matrix: microphone, Accessibility, hotkey, editors, browsers,
       messengers, terminals, multiple displays, sleep/wake, and login launch.

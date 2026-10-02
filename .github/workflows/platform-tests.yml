@@ -48,9 +48,14 @@ jobs:
         run: ./scripts/build_app.sh
       - name: Verify app signature
         run: codesign --verify --deep --strict dist/VoxLocal.app
-      - name: Upload unsigned-development app
+      - name: Package development DMG
+        run: |
+          VOXLOCAL_VERSION="${GITHUB_SHA::8}" ./scripts/package_macos.sh
+      - name: Upload macOS development package
         uses: actions/upload-artifact@v4
         with:
           name: VoxLocal-macOS-development
-          path: dist/VoxLocal.app
+          path: |
+            dist/VoxLocal-macOS-*.dmg
+            dist/VoxLocal-macOS-*.dmg.sha256
           if-no-files-found: error

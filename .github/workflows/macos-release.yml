@@ -1,0 +1,41 @@
+name: macOS release
+
+on:
+  push:
+    tags:
+      - 'macos-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build macOS DMG
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap whisper.cpp with Metal
+        run: ./scripts/bootstrap.sh
+      - name: Run macOS tests
+        run: ./scripts/test.sh
+      - name: Build app bundle
+        run: ./scripts/build_app.sh
+      - name: Package DMG
+        run: |
+          version="${GITHUB_REF_NAME#macos-v}"
+          VOXLOCAL_VERSION="$version" ./scripts/package_macos.sh
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VoxLocal macOS ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            Development build for macOS 14+ (Apple Silicon recommended).
+
+            This package currently uses an ad-hoc signature. On first launch,
+            right-click VoxLocal and choose Open. Apple Developer ID signing
+            and notarization will be added when credentials are available.
+          files: |
+            dist/VoxLocal-macOS-*.dmg
+            dist/VoxLocal-macOS-*.dmg.sha256
