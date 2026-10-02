@@ -1,104 +1,93 @@
-# VoxLocal
+# VoxLocal для Windows
 
-> Windows MVP instructions: [README_WINDOWS.md](README_WINDOWS.md)
+**VoxLocal** — приложение для голосового ввода текста в Windows 10/11. Удерживайте **Alt + Space**, произнесите текст и отпустите клавиши: программа локально распознает речь и вставит результат в активное окно.
 
-**Privacy-first, fully local voice dictation for macOS.** Press a global shortcut, speak, release — the recognized text is inserted into whatever app you were using. Speech never leaves your Mac.
+## Возможности
 
-Русская версия: [README_RU.md](README_RU.md)
+- быстрое локальное распознавание русской речи через Sherpa-ONNX T-One;
+- альтернативное многоязычное распознавание через Whisper;
+- работа из области уведомлений без открытого основного окна;
+- вставка текста в терминалы, мессенджеры, браузеры и редакторы;
+- отображение предварительного результата во время диктовки;
+- история пяти последних диктовок;
+- удаление временной аудиозаписи после каждой сессии;
+- необязательное улучшение пунктуации и стиля через Polza.ai;
+- отсутствие телеметрии и облачной отправки аудио.
 
-## What it does
+Распознавание выполняется на компьютере. Облачная обработка текста выключена по умолчанию и используется только после явного включения пользователем и добавления собственного API-ключа.
 
-- **Menu-bar app** (no Dock icon) with a global shortcut — default **⌥ Option + Space**:
-  - *press-and-hold*: record while held, transcribe on release;
-  - *toggle*: press to start, press again to stop.
-- **On-device transcription** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (pinned to `v1.9.1`), Metal-accelerated on Apple Silicon. Russian, English and auto-detection.
-- **Optional text refinement** (punctuation, capitalization, filler-word cleanup) through a **local Ollama** server on `localhost`. If Ollama is missing, unreachable, times out or returns nonsense, the raw transcript is used — dictation never breaks.
-- **System-wide insertion**: Accessibility API first, simulated ⌘V with clipboard restore second, plain "copied to clipboard" as the last resort.
-- A compact floating **overlay** shows ready / listening (with a mic level meter) / transcribing / refining / inserting / completed / cancelled / error. `Esc` cancels. The overlay never steals focus.
-- **Russian (default) and English** interface.
+## Установка из GitHub
 
-## Privacy model
+### Требования
 
-- Audio is recorded to a temporary WAV, transcribed locally and **deleted immediately** after success, cancellation or error.
-- **No cloud APIs, no API keys, no accounts.** The only network access is downloading a Whisper model — you start it explicitly and see the size first.
-- Ollama refinement talks to `http://127.0.0.1:11434` (configurable, **loopback addresses only** — remote hosts are rejected).
-- **No analytics, telemetry, tracking or crash reporting.**
-- Logs never contain audio, transcripts or clipboard contents. Details: [PRIVACY.md](PRIVACY.md).
+- 64-разрядная Windows 10 или Windows 11;
+- PowerShell 5.1 или новее;
+- [Git for Windows](https://git-scm.com/download/win);
+- около 1,5 ГБ свободного места во время сборки и около 400 МБ после установки;
+- подключение к интернету для первой установки зависимостей и модели.
 
-## Requirements
+### Быстрая установка
 
-- macOS **14+** (built and tested on macOS 26, Apple Silicon).
-- Apple Silicon recommended (Metal acceleration). Intel builds work without Metal.
-- Xcode **Command Line Tools** (or full Xcode) to build.
-- Disk space: ~500 MB for build artifacts + your chosen model (base ≈ 148 MB, small ≈ 488 MB, large-v3 ≈ 3.1 GB).
-- Optional: [Ollama](https://ollama.com) with any instruct model (e.g. `ollama pull qwen2.5:3b`).
+Откройте **PowerShell** и выполните:
 
-## Build & run
-
-```bash
-git clone https://github.com/romarayt/VoxLocal.git && cd VoxLocal
-
-./scripts/bootstrap.sh    # checks tools, fetches project-local cmake if needed,
-                          # clones whisper.cpp v1.9.1, builds whisper-cli (Metal)
-./scripts/test.sh         # runs the automated test suite
-./scripts/download_model.sh base   # ~148 MB, asks for confirmation (or use the in-app downloader)
-./scripts/build_app.sh    # builds dist/VoxLocal.app (ad-hoc signed)
-./scripts/run.sh          # launches the app
+```powershell
+git clone https://github.com/sitework3-hash/VoxLocal-Win.git
+cd VoxLocal-Win
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-No Homebrew, CocoaPods or other global package managers are required; everything is project-local (`vendor/`).
+Скрипт автоматически:
 
-## First-run setup (permissions)
+1. загрузит локальные инструменты сборки в каталог репозитория;
+2. соберёт автономную Windows-версию;
+3. загрузит локальную русскую модель распознавания;
+4. установит программу в `%LOCALAPPDATA%\Programs\VoxLocal`;
+5. создаст ярлыки на рабочем столе и в меню «Пуск»;
+6. запустит VoxLocal.
 
-The app opens an onboarding wizard that walks through all of this:
+Права администратора не требуются. После установки репозиторий можно удалить: установленная программа и модель продолжат работать.
 
-1. **Microphone** — macOS shows a prompt at first recording; or System Settings → Privacy & Security → Microphone → enable *VoxLocal*.
-2. **Accessibility** (for inserting text into other apps) — System Settings → Privacy & Security → Accessibility → add/enable *VoxLocal*. Without it the app still works: text is copied to the clipboard and you paste with ⌘V.
-3. **Model** — download `base` (recommended) from the app (Settings → Transcription) or with `./scripts/download_model.sh`.
-4. **Ollama (optional)** — install from ollama.com, `ollama pull qwen2.5:3b`, then enable refinement in Settings → Refinement and pick the model. Change the model any time in the same tab.
+Для обновления откройте ранее клонированный каталог и выполните:
 
-> **Note on ad-hoc signing:** each rebuild produces a new signature, so macOS treats it as a new app — you may need to re-grant Microphone/Accessibility after rebuilding.
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
-## Settings overview
+Дополнительные параметры:
 
-Shortcut & mode (hold/toggle), microphone device, Whisper model & spoken language & threads, artifact cleanup, refinement on/off + endpoint + model + preset (raw / clean / concise / business / preserve wording / custom instruction) + timeout, insertion mode (auto / clipboard-only), launch at login, interface language (RU/EN/system), log level, reset onboarding.
+```powershell
+.\install.ps1 -NoDesktopShortcut # не создавать ярлык на рабочем столе
+.\install.ps1 -NoLaunch          # не запускать приложение после установки
+.\install.ps1 -SkipModel         # не загружать модель (для обновления/разработки)
+```
 
-## Troubleshooting
+## Использование
 
-| Symptom | Fix |
-|---|---|
-| Shortcut does nothing | Another app owns ⌥Space — VoxLocal shows a conflict alert; pick another combo in Settings → General. |
-| "Microphone access is denied" | System Settings → Privacy & Security → Microphone → enable VoxLocal. |
-| Text not inserted, "copied to clipboard" message | Grant Accessibility permission, or paste manually with ⌘V. Secure (password) fields are never auto-filled by design. |
-| "No speech model is installed" | Download one in Settings → Transcription (or `./scripts/download_model.sh base`). |
-| "whisper-cli not found" | Run `./scripts/bootstrap.sh`, then `./scripts/build_app.sh` again. |
-| Refinement never applies | Check Settings → Refinement → "Check": the Ollama server and model must both exist. The endpoint must be a localhost address. |
-| Recognition is slow | Use a smaller model (`base`/`tiny`) or increase threads in Settings → Transcription. |
-| Reset macOS permissions | `tccutil reset Microphone org.voxlocal.VoxLocal && tccutil reset Accessibility org.voxlocal.VoxLocal` |
+1. Разрешите классическим приложениям доступ к микрофону: **Параметры Windows → Конфиденциальность и безопасность → Микрофон**.
+2. Запустите VoxLocal. Значок появится рядом с часами.
+3. Удерживайте **Alt + Space**, говорите и отпустите клавиши.
+4. Для отмены записи нажмите **Esc**.
+5. Дважды щёлкните значок в области уведомлений, чтобы открыть настройки и историю.
 
-Logs: menu bar → *Open Logs* (`~/Library/Logs/VoxLocal/`, bounded size, privacy-filtered).
+Если сочетание Alt + Space занято, выберите в настройках **Ctrl + Alt + Space**.
 
-## Known limitations
+## Удаление
 
-- Ad-hoc signature ⇒ permission re-grants after rebuilds (see above); Gatekeeper may require right-click → Open on other Macs.
-- While dictation is active, `Esc` is captured globally to allow cancellation; it is released as soon as the session ends.
-- Whisper transcribes after recording stops (no streaming partial results).
-- Some apps that block synthetic paste (rare, e.g. certain secure terminals) fall back to clipboard-only mode.
-- `large-v3` on 8 GB Macs can be slow/memory-hungry; `base`/`small` recommended.
+В меню «Пуск» откройте **VoxLocal → Удалить VoxLocal**. Настройки, история и модели по умолчанию сохраняются. Для полного удаления данных запустите из каталога программы:
 
-## Uninstall
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\VoxLocal\uninstall.ps1" -RemoveUserData
+```
 
-1. Quit VoxLocal (menu bar → Quit).
-2. Delete `dist/VoxLocal.app` (or wherever you copied it).
-3. Remove data (optional):
-   ```bash
-   rm -rf ~/Library/Application\ Support/VoxLocal   # models
-   rm -rf ~/Library/Logs/VoxLocal                   # logs
-   defaults delete org.voxlocal.VoxLocal 2>/dev/null # settings
-   tccutil reset Microphone org.voxlocal.VoxLocal
-   tccutil reset Accessibility org.voxlocal.VoxLocal
-   ```
+## Документация для разработчиков
 
-## License
+- [Подробная инструкция для Windows](README_WINDOWS.md)
+- [Архитектура и передача проекта](WINDOWS_HANDOFF.md)
+- [Политика конфиденциальности](PRIVACY.md)
 
-MIT — see [LICENSE](LICENSE). Third-party components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Contributions welcome: [CONTRIBUTING.md](CONTRIBUTING.md).
+Исходная macOS-версия находится в upstream-репозитории [romarayt/VoxLocal](https://github.com/romarayt/VoxLocal).
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE). Сведения о сторонних компонентах: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

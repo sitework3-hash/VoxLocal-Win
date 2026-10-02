@@ -8,7 +8,25 @@ enables this feature.
 
 For future maintainers and debugging, see [WINDOWS_HANDOFF.md](WINDOWS_HANDOFF.md).
 
-## Build and run
+## Install on another computer
+
+Requirements: 64-bit Windows 10/11, PowerShell, Git for Windows, an internet
+connection during installation, and about 1.5 GB of temporary free space.
+Administrator access is not required.
+
+```powershell
+git clone https://github.com/sitework3-hash/VoxLocal-Win.git
+cd VoxLocal-Win
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+The installer builds the application, downloads the default local Russian
+model, installs VoxLocal into `%LOCALAPPDATA%\Programs\VoxLocal`, creates Start
+menu and desktop shortcuts, and launches it. After installation, the cloned
+repository may be deleted. Run `git pull` followed by `install.ps1` from the
+same clone to update the application.
+
+## Build and run for development
 
 Run these commands in PowerShell from the repository root:
 
