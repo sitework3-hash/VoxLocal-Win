@@ -311,6 +311,9 @@ struct RefinementSettingsTab: View {
     @ObservedObject var settings: SettingsStore
     @State private var availability: String?
     @State private var ollamaModels: [String] = []
+    @State private var apiKey = ""
+    @State private var hasSavedAPIKey = false
+    private let secretStore: SecretStoring = KeychainSecretStore.shared
 
     var body: some View {
         Form {
@@ -319,22 +322,62 @@ struct RefinementSettingsTab: View {
                 Text(L10n.t("settings.refine.hint"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                Picker(L10n.t("settings.refine.provider"), selection: $settings.refinementProvider) {
+                    Text(L10n.t("settings.refine.provider.cloud")).tag(RefinementProviderKind.openAICompatible)
+                    Text(L10n.t("settings.refine.provider.ollama")).tag(RefinementProviderKind.ollama)
+                }
             }
 
-            Section(L10n.t("settings.refine.ollama.section")) {
-                TextField(L10n.t("settings.refine.endpoint"), text: $settings.ollamaEndpoint)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    TextField(L10n.t("settings.refine.model"), text: $settings.ollamaModel)
+            if settings.refinementProvider == .openAICompatible {
+                Section(L10n.t("settings.refine.cloud.section")) {
+                    TextField(L10n.t("settings.refine.baseURL"), text: $settings.openAIBaseURL)
                         .textFieldStyle(.roundedBorder)
-                    if !ollamaModels.isEmpty {
-                        Picker("", selection: $settings.ollamaModel) {
-                            ForEach(ollamaModels, id: \.self) { Text($0).tag($0) }
-                        }
-                        .labelsHidden()
-                        .frame(width: 30)
+                    Picker(L10n.t("settings.refine.profile"), selection: $settings.openAIModelProfile) {
+                        Text("Gemini 2.5 Flash").tag(OpenAIModelProfile.geminiFlash)
+                        Text("DeepSeek Chat").tag(OpenAIModelProfile.deepSeekChat)
+                        Text(L10n.t("settings.refine.profile.custom")).tag(OpenAIModelProfile.custom)
+                    }
+                    .onChange(of: settings.openAIModelProfile) { profile in
+                        if let modelID = profile.modelID { settings.openAIModel = modelID }
+                    }
+                    TextField(L10n.t("settings.refine.model"), text: $settings.openAIModel)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(settings.openAIModelProfile != .custom)
+                    SecureField(
+                        hasSavedAPIKey ? L10n.t("settings.refine.key.saved") : L10n.t("settings.refine.key"),
+                        text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button(L10n.t("settings.refine.key.save")) { saveAPIKey() }
+                            .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button(L10n.t("settings.refine.key.delete"), role: .destructive) { deleteAPIKey() }
+                            .disabled(!hasSavedAPIKey)
+                        Text(L10n.t("settings.refine.key.keychain"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
+                .disabled(!settings.refinementEnabled)
+            } else {
+                Section(L10n.t("settings.refine.ollama.section")) {
+                    TextField(L10n.t("settings.refine.endpoint"), text: $settings.ollamaEndpoint)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        TextField(L10n.t("settings.refine.model"), text: $settings.ollamaModel)
+                            .textFieldStyle(.roundedBorder)
+                        if !ollamaModels.isEmpty {
+                            Picker("", selection: $settings.ollamaModel) {
+                                ForEach(ollamaModels, id: \.self) { Text($0).tag($0) }
+                            }
+                            .labelsHidden()
+                            .frame(width: 30)
+                        }
+                    }
+                }
+                .disabled(!settings.refinementEnabled)
+            }
+
+            Section {
                 HStack {
                     Button(L10n.t("settings.refine.check")) { check() }
                     if let availability {
@@ -345,7 +388,7 @@ struct RefinementSettingsTab: View {
                 }
                 HStack {
                     Text(L10n.t("settings.refine.timeout"))
-                    Slider(value: $settings.refinementTimeout, in: 5...60, step: 5)
+                    Slider(value: $settings.refinementTimeout, in: 5...60, step: 1)
                     Text("\(Int(settings.refinementTimeout)) s")
                         .monospacedDigit()
                 }
@@ -368,33 +411,69 @@ struct RefinementSettingsTab: View {
             .disabled(!settings.refinementEnabled)
         }
         .formStyle(.grouped)
+        .task { hasSavedAPIKey = (try? secretStore.read()) != nil }
+    }
+
+    private func saveAPIKey() {
+        do {
+            try secretStore.save(apiKey)
+            apiKey = ""
+            hasSavedAPIKey = true
+            availability = L10n.t("settings.refine.key.saved.status")
+        } catch {
+            availability = L10n.t("settings.refine.key.error")
+        }
+    }
+
+    private func deleteAPIKey() {
+        do {
+            try secretStore.delete()
+            apiKey = ""
+            hasSavedAPIKey = false
+            availability = L10n.t("settings.refine.key.deleted")
+        } catch {
+            availability = L10n.t("settings.refine.key.error")
+        }
     }
 
     private func check() {
         availability = L10n.t("settings.refine.status.checking")
-        let endpoint = settings.ollamaEndpoint
-        let model = settings.ollamaModel
         Task {
             do {
-                let provider = try OllamaRefinementProvider(endpoint: endpoint, model: model)
-                let names = try await provider.installedModels()
-                ollamaModels = names
-                if model.isEmpty {
-                    availability = L10n.t("settings.refine.status.pickModel", names.joined(separator: ", "))
-                } else {
-                    switch await provider.checkAvailability() {
-                    case .available:
-                        availability = L10n.t("settings.refine.status.ok")
-                    case .modelMissing(let available):
-                        availability = L10n.t("settings.refine.status.nomodel", available.joined(separator: ", "))
-                    case .serverUnreachable(let reason):
-                        availability = L10n.t("settings.refine.status.unreachable", reason)
+                let provider: TextRefinementProvider
+                if settings.refinementProvider == .openAICompatible {
+                    guard let key = try secretStore.read(), !key.isEmpty else {
+                        availability = L10n.t("settings.refine.key.required")
+                        return
                     }
+                    provider = try OpenAICompatibleRefinementProvider(
+                        baseURL: settings.openAIBaseURL,
+                        model: settings.openAIModel,
+                        apiKey: key)
+                } else {
+                    let ollama = try OllamaRefinementProvider(
+                        endpoint: settings.ollamaEndpoint,
+                        model: settings.ollamaModel)
+                    let names = try await ollama.installedModels()
+                    ollamaModels = names
+                    if settings.ollamaModel.isEmpty {
+                        availability = L10n.t("settings.refine.status.pickModel", names.joined(separator: ", "))
+                        return
+                    }
+                    provider = ollama
+                }
+                switch await provider.checkAvailability() {
+                case .available:
+                    availability = L10n.t("settings.refine.status.ok")
+                case .modelMissing(let available):
+                    availability = L10n.t("settings.refine.status.nomodel", available.joined(separator: ", "))
+                case .serverUnreachable:
+                    availability = L10n.t("settings.refine.status.failed")
                 }
             } catch RefinementError.nonLocalEndpoint {
                 availability = L10n.t("settings.refine.nonlocal")
             } catch {
-                availability = L10n.t("settings.refine.status.unreachable", error.localizedDescription)
+                availability = L10n.t("settings.refine.status.failed")
             }
         }
     }

@@ -123,8 +123,24 @@
 "settings.threads" = "Whisper threads: %d";
 "settings.artifacts" = "Remove recognition artifacts ([music], [BLANK_AUDIO], etc.)";
 
-"settings.refine.enabled" = "Refine text with a local LLM (Ollama)";
-"settings.refine.hint" = "Optional. The app fully works without Ollama: when the server is unavailable, the raw transcript is inserted.";
+"settings.refine.enabled" = "Refine recognized text";
+"settings.refine.hint" = "Optional. Any error or timeout falls back to the original local transcript. Audio is never sent to the cloud.";
+"settings.refine.provider" = "Provider";
+"settings.refine.provider.cloud" = "Polza.ai / OpenAI-compatible";
+"settings.refine.provider.ollama" = "Local Ollama";
+"settings.refine.cloud.section" = "Cloud text refinement";
+"settings.refine.baseURL" = "Base URL";
+"settings.refine.profile" = "Model profile";
+"settings.refine.profile.custom" = "Custom model";
+"settings.refine.key" = "API key";
+"settings.refine.key.saved" = "New API key (one is already saved)";
+"settings.refine.key.save" = "Save key";
+"settings.refine.key.delete" = "Delete key";
+"settings.refine.key.keychain" = "The key is protected by macOS Keychain";
+"settings.refine.key.saved.status" = "API key saved in Keychain ✓";
+"settings.refine.key.deleted" = "API key deleted";
+"settings.refine.key.required" = "Save an API key first";
+"settings.refine.key.error" = "Could not change the Keychain key";
 "settings.refine.ollama.section" = "Ollama server (localhost only)";
 "settings.refine.endpoint" = "Server address";
 "settings.refine.model" = "Model";
@@ -134,7 +150,8 @@
 "settings.refine.preset" = "Preset";
 "settings.refine.custom" = "Custom instruction";
 "settings.refine.status.checking" = "Checking…";
-"settings.refine.status.ok" = "Server and model available ✓";
+"settings.refine.status.ok" = "Provider and model available ✓";
+"settings.refine.status.failed" = "Connection failed. Check the key, balance, URL and model.";
 "settings.refine.status.nomodel" = "Model not found. Installed: %@";
 "settings.refine.status.unreachable" = "Server unreachable: %@";
 "settings.refine.status.pickModel" = "Server is up. Pick a model: %@";

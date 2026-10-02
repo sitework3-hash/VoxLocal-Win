@@ -174,6 +174,56 @@ final class RefinementPipelineTests: XCTestCase {
     }
 }
 
+final class OpenAICompatibleProviderTests: XCTestCase {
+    func testEndpointNormalization() throws {
+        XCTAssertEqual(
+            try OpenAICompatibleRefinementProvider.chatCompletionsURL(baseURL: "https://polza.ai/api/v1").absoluteString,
+            "https://polza.ai/api/v1/chat/completions")
+        XCTAssertEqual(
+            try OpenAICompatibleRefinementProvider.chatCompletionsURL(baseURL: "https://example.test/v1/chat/completions/").absoluteString,
+            "https://example.test/v1/chat/completions")
+    }
+
+    func testInvalidEndpointRejected() {
+        for endpoint in ["", "polza.ai/api/v1", "ftp://example.test/v1", "https://example.test/v1?q=secret"] {
+            XCTAssertThrowsError(try OpenAICompatibleRefinementProvider.chatCompletionsURL(baseURL: endpoint))
+        }
+    }
+
+    func testRequestBodyMatchesChatCompletionsContract() throws {
+        let context = RefinementContext(language: "ru", preset: .concise, timeout: 8)
+        let body = try OpenAICompatibleRefinementProvider.requestBody(
+            model: "google/gemini-2.5-flash",
+            transcript: "привет мир",
+            context: context)
+        let json = try JSONSerialization.jsonObject(with: body) as! [String: Any]
+
+        XCTAssertEqual(json["model"] as? String, "google/gemini-2.5-flash")
+        XCTAssertEqual(json["stream"] as? Bool, false)
+        XCTAssertEqual(json["temperature"] as? Double, 0.2)
+        let messages = json["messages"] as! [[String: Any]]
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[0]["role"] as? String, "system")
+        XCTAssertTrue((messages[0]["content"] as! String).contains("NEVER add new facts"))
+        XCTAssertEqual(messages[1]["content"] as? String, "привет мир")
+    }
+
+    func testHTTPErrorClassification() {
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 401), .authentication)
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 402), .insufficientBalance)
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 404), .modelOrEndpointNotFound)
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 429), .rateLimited)
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 503), .serverUnavailable)
+        XCTAssertEqual(OpenAICompatibleRefinementProvider.error(for: 400), .requestRejected(400))
+    }
+
+    func testModelProfiles() {
+        XCTAssertEqual(OpenAIModelProfile.geminiFlash.modelID, "google/gemini-2.5-flash")
+        XCTAssertEqual(OpenAIModelProfile.deepSeekChat.modelID, "deepseek/deepseek-chat")
+        XCTAssertEqual(OpenAIModelProfile.resolve(modelID: "custom/model"), .custom)
+    }
+}
+
 final class OllamaProviderTests: XCTestCase {
     func testNonLocalEndpointRejected() {
         for endpoint in ["http://example.com:11434", "https://8.8.8.8:11434", "http://my-server.local:11434"] {

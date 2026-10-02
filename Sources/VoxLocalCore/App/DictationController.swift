@@ -31,6 +31,7 @@ public final class DictationController: ObservableObject {
     private let inserter: TextInserter
     private let hotkeys: HotkeyManager
     private let history: TranscriptionHistoryStore
+    private let secretStore: SecretStoring
 
     private var targetApp: NSRunningApplication?
     private var pipelineTask: Task<Void, Never>?
@@ -45,7 +46,8 @@ public final class DictationController: ObservableObject {
         modelManager: ModelManager,
         inserter: TextInserter,
         hotkeys: HotkeyManager,
-        history: TranscriptionHistoryStore
+        history: TranscriptionHistoryStore,
+        secretStore: SecretStoring = KeychainSecretStore.shared
     ) {
         self.settings = settings
         self.permissions = permissions
@@ -55,6 +57,7 @@ public final class DictationController: ObservableObject {
         self.inserter = inserter
         self.hotkeys = hotkeys
         self.history = history
+        self.secretStore = secretStore
 
         recorder.levelHandler = { [weak self] level in
             self?.micLevel = level
@@ -271,9 +274,21 @@ public final class DictationController: ObservableObject {
     private func makeRefinementProvider() -> TextRefinementProvider {
         guard settings.refinementEnabled else { return NoRefinementProvider() }
         do {
-            return try OllamaRefinementProvider(
-                endpoint: settings.ollamaEndpoint,
-                model: settings.ollamaModel)
+            switch settings.refinementProvider {
+            case .ollama:
+                return try OllamaRefinementProvider(
+                    endpoint: settings.ollamaEndpoint,
+                    model: settings.ollamaModel)
+            case .openAICompatible:
+                guard let apiKey = try secretStore.read(), !apiKey.isEmpty else {
+                    Log.shared.info("cloud refinement API key is not configured; using raw transcript")
+                    return NoRefinementProvider()
+                }
+                return try OpenAICompatibleRefinementProvider(
+                    baseURL: settings.openAIBaseURL,
+                    model: settings.openAIModel,
+                    apiKey: apiKey)
+            }
         } catch {
             Log.shared.info("refinement provider unavailable (\(error)); using raw transcript")
             return NoRefinementProvider()

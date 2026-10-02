@@ -22,6 +22,10 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.whisperModel, "base")
         XCTAssertEqual(store.spokenLanguage, .auto)
         XCTAssertFalse(store.refinementEnabled)
+        XCTAssertEqual(store.refinementProvider, .openAICompatible)
+        XCTAssertEqual(store.openAIBaseURL, "https://polza.ai/api/v1")
+        XCTAssertEqual(store.openAIModel, "google/gemini-2.5-flash")
+        XCTAssertEqual(store.openAIModelProfile, .geminiFlash)
         XCTAssertEqual(store.ollamaEndpoint, "http://127.0.0.1:11434")
         XCTAssertEqual(store.refinementPreset, .cleanDictation)
         XCTAssertEqual(store.insertionMode, .automatic)
@@ -40,6 +44,10 @@ final class SettingsStoreTests: XCTestCase {
         store.spokenLanguage = .russian
         store.whisperThreads = 6
         store.refinementEnabled = true
+        store.refinementProvider = .openAICompatible
+        store.openAIBaseURL = "https://example.test/v1"
+        store.openAIModel = "custom/model"
+        store.openAIModelProfile = .custom
         store.ollamaModel = "qwen2.5:3b"
         store.refinementPreset = .concise
         store.customInstruction = "инструкция"
@@ -57,6 +65,10 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.spokenLanguage, .russian)
         XCTAssertEqual(reloaded.whisperThreads, 6)
         XCTAssertTrue(reloaded.refinementEnabled)
+        XCTAssertEqual(reloaded.refinementProvider, .openAICompatible)
+        XCTAssertEqual(reloaded.openAIBaseURL, "https://example.test/v1")
+        XCTAssertEqual(reloaded.openAIModel, "custom/model")
+        XCTAssertEqual(reloaded.openAIModelProfile, .custom)
         XCTAssertEqual(reloaded.ollamaModel, "qwen2.5:3b")
         XCTAssertEqual(reloaded.refinementPreset, .concise)
         XCTAssertEqual(reloaded.customInstruction, "инструкция")

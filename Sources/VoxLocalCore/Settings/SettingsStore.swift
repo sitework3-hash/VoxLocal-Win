@@ -15,6 +15,29 @@ public enum InsertionMode: String, CaseIterable, Sendable {
     case clipboardOnly
 }
 
+public enum RefinementProviderKind: String, CaseIterable, Sendable {
+    case openAICompatible
+    case ollama
+}
+
+public enum OpenAIModelProfile: String, CaseIterable, Sendable {
+    case geminiFlash
+    case deepSeekChat
+    case custom
+
+    public var modelID: String? {
+        switch self {
+        case .geminiFlash: "google/gemini-2.5-flash"
+        case .deepSeekChat: "deepseek/deepseek-chat"
+        case .custom: nil
+        }
+    }
+
+    public static func resolve(modelID: String) -> OpenAIModelProfile {
+        allCases.first(where: { $0.modelID == modelID }) ?? .custom
+    }
+}
+
 public enum SpokenLanguage: String, CaseIterable, Sendable {
     case auto
     case russian = "ru"
@@ -39,6 +62,10 @@ public final class SettingsStore: ObservableObject {
         static let whisperThreads = "whisper.threads"
         static let removeArtifacts = "whisper.removeArtifacts"
         static let refinementEnabled = "refine.enabled"
+        static let refinementProvider = "refine.provider"
+        static let openAIBaseURL = "refine.openAIBaseURL"
+        static let openAIModel = "refine.openAIModel"
+        static let openAIModelProfile = "refine.openAIModelProfile"
         static let ollamaEndpoint = "refine.ollamaEndpoint"
         static let ollamaModel = "refine.ollamaModel"
         static let refinementPreset = "refine.preset"
@@ -52,6 +79,8 @@ public final class SettingsStore: ObservableObject {
     }
 
     public static let defaultOllamaEndpoint = "http://127.0.0.1:11434"
+    public static let defaultOpenAIBaseURL = "https://polza.ai/api/v1"
+    public static let defaultOpenAIModel = "google/gemini-2.5-flash"
     public static let defaultHotkeyKeyCode: UInt32 = 49 // Space
     public static let defaultHotkeyModifiers: UInt32 = 0x0800 // Carbon optionKey
 
@@ -68,6 +97,13 @@ public final class SettingsStore: ObservableObject {
             ?? min(8, max(2, ProcessInfo.processInfo.activeProcessorCount / 2))
         removeArtifacts = defaults.object(forKey: Key.removeArtifacts) as? Bool ?? true
         refinementEnabled = defaults.object(forKey: Key.refinementEnabled) as? Bool ?? false
+        refinementProvider = RefinementProviderKind(
+            rawValue: defaults.string(forKey: Key.refinementProvider) ?? "") ?? .openAICompatible
+        openAIBaseURL = defaults.string(forKey: Key.openAIBaseURL) ?? Self.defaultOpenAIBaseURL
+        openAIModel = defaults.string(forKey: Key.openAIModel) ?? Self.defaultOpenAIModel
+        openAIModelProfile = OpenAIModelProfile(
+            rawValue: defaults.string(forKey: Key.openAIModelProfile) ?? "")
+            ?? OpenAIModelProfile.resolve(modelID: openAIModel)
         ollamaEndpoint = defaults.string(forKey: Key.ollamaEndpoint) ?? Self.defaultOllamaEndpoint
         ollamaModel = defaults.string(forKey: Key.ollamaModel) ?? ""
         refinementPreset = RefinementPreset(rawValue: defaults.string(forKey: Key.refinementPreset) ?? "") ?? .cleanDictation
@@ -106,6 +142,18 @@ public final class SettingsStore: ObservableObject {
     }
     @Published public var refinementEnabled: Bool {
         didSet { defaults.set(refinementEnabled, forKey: Key.refinementEnabled) }
+    }
+    @Published public var refinementProvider: RefinementProviderKind {
+        didSet { defaults.set(refinementProvider.rawValue, forKey: Key.refinementProvider) }
+    }
+    @Published public var openAIBaseURL: String {
+        didSet { defaults.set(openAIBaseURL, forKey: Key.openAIBaseURL) }
+    }
+    @Published public var openAIModel: String {
+        didSet { defaults.set(openAIModel, forKey: Key.openAIModel) }
+    }
+    @Published public var openAIModelProfile: OpenAIModelProfile {
+        didSet { defaults.set(openAIModelProfile.rawValue, forKey: Key.openAIModelProfile) }
     }
     @Published public var ollamaEndpoint: String {
         didSet { defaults.set(ollamaEndpoint, forKey: Key.ollamaEndpoint) }

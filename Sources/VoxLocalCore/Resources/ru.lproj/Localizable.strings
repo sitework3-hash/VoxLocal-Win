@@ -123,8 +123,24 @@
 "settings.threads" = "Потоков Whisper: %d";
 "settings.artifacts" = "Убирать артефакты распознавания ([музыка], [BLANK_AUDIO] и т. п.)";
 
-"settings.refine.enabled" = "Улучшать текст локальной LLM (Ollama)";
-"settings.refine.hint" = "Необязательно. Приложение полностью работает без Ollama: при недоступности сервера вставляется исходная расшифровка.";
+"settings.refine.enabled" = "Улучшать распознанный текст";
+"settings.refine.hint" = "Необязательно. При любой ошибке или тайм-ауте вставляется исходная локальная расшифровка. Аудио в облако не отправляется.";
+"settings.refine.provider" = "Провайдер";
+"settings.refine.provider.cloud" = "Polza.ai / OpenAI-compatible";
+"settings.refine.provider.ollama" = "Локальный Ollama";
+"settings.refine.cloud.section" = "Облачное улучшение текста";
+"settings.refine.baseURL" = "Base URL";
+"settings.refine.profile" = "Профиль модели";
+"settings.refine.profile.custom" = "Своя модель";
+"settings.refine.key" = "API-ключ";
+"settings.refine.key.saved" = "Новый API-ключ (текущий уже сохранён)";
+"settings.refine.key.save" = "Сохранить ключ";
+"settings.refine.key.delete" = "Удалить ключ";
+"settings.refine.key.keychain" = "Ключ защищён macOS Keychain";
+"settings.refine.key.saved.status" = "API-ключ сохранён в Keychain ✓";
+"settings.refine.key.deleted" = "API-ключ удалён";
+"settings.refine.key.required" = "Сначала сохраните API-ключ";
+"settings.refine.key.error" = "Не удалось изменить ключ в Keychain";
 "settings.refine.ollama.section" = "Сервер Ollama (только localhost)";
 "settings.refine.endpoint" = "Адрес сервера";
 "settings.refine.model" = "Модель";
@@ -134,7 +150,8 @@
 "settings.refine.preset" = "Пресет";
 "settings.refine.custom" = "Своя инструкция";
 "settings.refine.status.checking" = "Проверка…";
-"settings.refine.status.ok" = "Сервер и модель доступны ✓";
+"settings.refine.status.ok" = "Провайдер и модель доступны ✓";
+"settings.refine.status.failed" = "Подключение не удалось. Проверьте ключ, баланс, URL и модель.";
 "settings.refine.status.nomodel" = "Модель не найдена. Установлены: %@";
 "settings.refine.status.unreachable" = "Сервер недоступен: %@";
 "settings.refine.status.pickModel" = "Сервер доступен. Выберите модель: %@";

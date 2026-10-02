@@ -38,10 +38,10 @@ restructure the stable Windows application.
 
 - [x] Persistent history of the five newest successful transcripts.
 - [ ] Live partial transcription in the recording overlay.
-- [ ] OpenAI-compatible/Polza.ai refinement provider.
-- [ ] Gemini Flash and DeepSeek Chat profiles.
-- [ ] API-key storage in macOS Keychain.
-- [ ] Provider connection test and safe raw-transcript fallback.
+- [x] OpenAI-compatible/Polza.ai refinement provider.
+- [x] Gemini Flash and DeepSeek Chat profiles.
+- [x] API-key storage in macOS Keychain.
+- [x] Provider connection test and safe raw-transcript fallback.
 - [ ] Match Windows clipboard restoration and empty-transcript behavior.
 
 ### Stage 3 — performance and productization
