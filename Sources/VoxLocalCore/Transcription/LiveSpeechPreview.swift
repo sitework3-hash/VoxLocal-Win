@@ -30,7 +30,7 @@ public final class LiveSpeechPreview: @unchecked Sendable {
     /// Starts a partial-result session. Returns false when on-device speech
     /// recognition is unavailable for the selected language or permission was
     /// declined. The callback is always delivered on the main queue.
-    public func start(language: String, onText: @escaping @Sendable (String) -> Void) async -> Bool {
+    public func start(language: String, onText: @escaping @MainActor @Sendable (String) -> Void) async -> Bool {
         guard await requestAuthorization() else { return false }
         stop(cancel: true)
 
@@ -53,7 +53,7 @@ public final class LiveSpeechPreview: @unchecked Sendable {
         let task = recognizer.recognitionTask(with: request) { result, error in
             if let result {
                 let text = result.bestTranscription.formattedString
-                DispatchQueue.main.async { onText(text) }
+                Task { @MainActor in onText(text) }
             }
             if error != nil || result?.isFinal == true {
                 // The final result is intentionally ignored; Whisper performs

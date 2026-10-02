@@ -171,13 +171,12 @@ public final class DictationController: ObservableObject {
             }
         }
 
+        let controller = self
         livePreviewAvailable = await livePreview.start(
             language: settings.spokenLanguage.whisperCode
-        ) { [weak self] text in
-            Task { @MainActor in
-                guard let self, self.state == .recording else { return }
-                self.livePreviewText = text
-            }
+        ) { @MainActor [weak controller] text in
+            guard let controller, controller.state == .recording else { return }
+            controller.livePreviewText = text
         }
 
         do {
